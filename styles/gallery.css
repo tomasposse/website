@@ -1,0 +1,63 @@
+.row {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+
+  overflow-x: auto;
+  overflow-y: hidden;
+
+  width: 100%;
+  max-width: 100%;
+
+  box-sizing: border-box;
+
+   background: rgba(200, 200, 200, 1.0);
+   padding: 20px;
+   box-sizing: border-box;
+
+
+  /* IMPORTANT: prevents page-wide overflow bugs */
+  overscroll-behavior-x: contain;
+}
+
+.card {
+  flex: 0 0 auto;
+  width: 100px;
+
+  min-width: 100px; /* prevents shrink weirdness */
+
+  text-align: center;
+}
+
+.card img {
+  width: 100px;
+  height: 100px;
+  object-fit: contain;
+  display: block;
+}
+
+.card p {
+  margin: 4px 0 0;
+}
+
+
+.card1 {
+  flex: 0 0 auto;
+  width: 100%;
+
+  min-width: 100px; /* prevents shrink weirdness */
+
+  text-align: center;
+}
+
+.card1 img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.card1 p {
+  margin: 4px 0 0;
+}
+

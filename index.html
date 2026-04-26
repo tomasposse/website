@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>Tokyyto</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="stylesheet" href="styles/main.css">
+	<link rel="stylesheet" href="styles/title.css">
+	<link rel="stylesheet" href="styles/3d.css">
+	<link rel="stylesheet" href="styles/gallery.css">
+</head>
+<style type="text/css">
+
+@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@300..700&display=swap');
+
+
+</style>
+
+<body>
+
+
+
+	<nav style="height: 100px; flex: 0 0 auto; padding-left: 20px; display: flex; align-items: center;">
+		<div style="display: flex; align-items: center;">
+			<div style="display:flex; flex-direction: column;">
+				<div style="padding-top: 10px;">
+					<img src="public/images/logo.jpg" style="height: 35px; width:35px; mix-blend-mode: darken;">
+				</div>
+				<a style="font-size: 16px;" href="https://www.instagram.com/tokyyto">@tokyyto</a>
+				<span style="font-size: 16px;">Tomás Posse</span>
+			</div>
+		</div>
+	</nav>
+
+	<!-- STYLE EXP -->
+	<style type="text/css">
+	#section1 {
+		width: 65%;
+	}
+	#section2 {
+		width: 35%;
+	}
+	@media (max-width: 900px) {
+	  #section1,
+	  #section2 {
+	    width: 100%;
+	  }
+		.layout {
+			flex-direction: column;
+		}
+	}
+	</style>
+
+	<div style="display: flex; align-items: flex-start;" class="layout">
+		<div id="section1" class="border" style="height: calc(100dvh - 100px); box-sizing: border-box; display:flex; flex-direction: column;">
+		 	<div  style="display: flex; flex-direction: column; width: fit-content; margin-left: auto; padding: 20px 20px 20px 20px; box-sizing:border-box;">
+				<h1 style="font-size: 60px; text-align: end; margin:0;">Applied A.I. R&D</h1>
+				<h1>Harness Engineering<br>Agents<br><a href="https://x.com/karpathy/status/2039805659525644595">LLM Knowledge Bases</a></h1>
+			</div>
+
+			<!-- <canvas id="glCanvas" style="flex: 1;"></canvas> -->
+
+		  <div id="loco" style="flex: 1; position: relative; opacity: .5; min-height: 0;">
+		  <canvas id="glCanvas" style="position:absolute; top:0; left:0; width:100%; height:100%;"></canvas>
+		</div>
+		  <script src="shader.js"></script>
+		  <!-- 
+			<div style="margin-top: auto;" hidden>
+				<div class="itemsWrapper">
+				
+					<script src="shader.js"></script>
+					<div class="item0" HIDDEN>
+					    <div class="item1"></div>
+					    <div class="item2"></div>
+					</div>
+				</div>	
+			</div>
+			<div style="width:100%; height:50%; background:black; margin-top: auto"></div> -->
+		 	
+		</div>
+
+
+
+
+
+
+
+
+
+
+
+		<div id="section2" style="min-height:calc(100dvh - 200px);">
+
+
+			<div style="min-height:calc(100dvh - 100px); display: flex;  flex-direction: column;justify-content: flex-end;">
+				<div style="display: flex; flex-direction: column; padding:20px; box-sizing: border-box;">
+				    <h1 style="font-size: 48px; margin:0; text-align: start;">
+				      Augmented<br>Reality
+				    </h1>
+			 	</div>	
+			 	<div style="width: 100%; display: flex; padding:13px; box-sizing: border-box; background:lightgray;">
+				 	<div style="display: flex; flex-direction:row; flex-wrap: wrap; gap: 12px; align-items: center;">
+				    	<div style="display: flex; flex-direction:column; min-width: 200px; flex: 1;">
+				      	<h1 style="margin:0;">Our Partnership with Meta</h1>
+				     	 <h4 style="margin:0;"> Using Meta's AR engine (Instagram, Facebook, and Messenger) (shut down in January 2025)</h4>
+				    </div>
+				    <img src="public/images/meta.png" style="height:140px; width:140px; flex-shrink: 0;">
+				  </div>
+				</div>
+			</div>
+
+
+
+			
+		</div>
+	
+	</div>
+
+
+	<style type="text/css">
+		.bottomText	{
+			width:25%;margin: 0;text-align:right;box-sizing:border-box;
+		}
+	</style>
+
+ 	<div style="width:100%;display:block; background: lightblue;">
+	    <h1 class="bottomText" style="padding:100px 10px 0 0;">Work</h1>
+	    <div style="width:75%; box-sizing:border-box; margin: 0 0 0 25%;">
+	      <div style="display:flex;flex-wrap:wrap;gap:20px; justify-content: center; padding: 50px 0 50px 0%; background: red;">
+	        <div style="flex:0 0 calc(25% - 0px);text-align:center;"><img src="public/images/clients/nba.png" style="width:100%;max-width:200px;"><div>NBA</div></div>
+	        <div style="flex:0 0 calc(25% - 0px);text-align:center;"><img src="public/images/clients/tnt.png" style="width:100%;max-width:200px;"><div>NBA</div></div>
+	        <div style="flex:0 0 calc(25% - 0px);text-align:center;"><img src="public/images/clients/nxs.png" style="width:100%;max-width:200px;"><div>NBA</div></div>
+	        <div style="flex:0 0 calc(25% - 0px);text-align:center;"><img src="public/images/clients/nba.png" style="width:100%;max-width:200px;"><div>NBA</div></div>
+	        <div style="flex:0 0 calc(25% - 0px);text-align:center;"><img src="public/images/clients/nba.png" style="width:100%;max-width:200px;"><div>NBA</div></div>
+	        <div style="flex:0 0 calc(25% - 0px);text-align:center;"><img src="public/images/clients/nba.png" style="width:100%;max-width:200px;"><div>NBA</div></div>
+	      </div>
+	    </div>	    
+	</div>
+</body>
+</html>
+
+   
+
+
+
