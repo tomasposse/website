@@ -1,34 +1,29 @@
 
 .itemsWrapper {
   width: 100%;
-  height: 300px;
+  height: 100%;
   position: relative;
+  filter: url(#turbWarp);
 
 
 }
 
 
-.item0, .item1, .item2 {
-  border: 5px solid rgba(100,100,100,1);
-  box-sizing: border-box;
+.item1 {
+  background: rgba(250, 0, 250, .5);
 }
-
+.item2 {
+  background: rgba(40, 40, 0, .5);
+}
 .item0 {
+  background: rgba(0, 90, 90, .5);
   width: 100%;
   height: 100%;
-
-  margin-right: auto;
-  perspective: 1000px;
-  perspective-origin: 50% 50%;
+  perspective: 100px;
+  perspective-origin: 00% 50%;
   transform-style: preserve-3d;
 
-     transform: translate3d(0, 0, -200px)
-               rotateX(0deg)
-               rotateY(0deg)
-               rotateZ(0deg)
-               scale(1);
-
-  animation: smoothRotate 15s ease-in-out infinite;
+  animation: smoothRotate 5s ease-in-out infinite;
 }
 
 
@@ -39,57 +34,35 @@
 }
 
 .item1 {
-  transform: translate3d(0, 0, 25px);
+  transform: translate3d(0, 0, 4px);
+  width: 75%;
+  height: 75%;
+}
+
+.item2 {
+  transform: translate3d(0px, 0px, 8px);
   width: 50%;
   height: 50%;
 }
 
-.item2 {
-  transform: translate3d(0px, 0px, 50px);
-  width: 20%;
-  height: 20%;
-}
-
-
 @keyframes smoothRotate {
   0% {
-    transform: translate3d(0, 0, -200px)
-               rotateX(0deg)
-               rotateY(0deg)
-               rotateZ(0deg)
-               scale(1);
+    transform: rotateY(0deg) rotateX(0deg) scale(0.65);
   }
 
   25% {
-    transform: translate3d(0, 0, -200px)
-               rotateX(20deg)
-               rotateY(40deg)
-               rotateZ(-20deg)
-               scale(0.5);
+    transform: rotateY(20deg) rotateX(45deg) scale(0.6);
   }
 
   50% {
-    transform: translate3d(0, 0, -200px)
-               rotateX(0deg)
-               rotateY(70deg)
-               rotateZ(0deg)
-               scale(0.3);
+    transform: rotateY(45deg) rotateX(45deg) scale(0.55);
   }
 
   75% {
-    transform: translate3d(0, 0, -200px)
-               rotateX(20deg)
-               rotateY(40deg)
-               rotateZ(20deg)
-               scale(.5);
+    transform: rotateY(0deg) rotateX(0deg) scale(0.6);
   }
 
   100% {
-    transform: translate3d(0, 0, -200px)
-               rotateX(0deg)
-               rotateY(0deg) /* keeps it looping smoothly */
-               rotateZ(0deg)
-               scale(1);
+    transform: rotateY(0deg) rotateX(0deg) scale(0.65);
   }
 }
-
