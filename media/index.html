@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>Tokyyto - Media</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="stylesheet" href="../public/styles/main.css">
+	<link rel="stylesheet" href="../public/styles/3d.css">
+	<link rel="stylesheet" href="../public/styles/gallery.css">
+	<link rel="icon" type="image/x-icon" href="../public/images/logo.png">
+	<style>
+		#section1 {
+			width: 35%;
+		}
+		#section2 {
+			width: 65%;
+		}
+		@media (max-width: 900px) {
+			#section1,
+			#section2 {
+				width: 100%;
+			}
+		}
+	</style>
+</head>
+<body>
+	<svg style="position:absolute;width:0;height:0">
+		<defs>
+			<filter id="turbWarp">
+				<feTurbulence type="fractalNoise" baseFrequency="1" numOctaves="3" seed="2" result="noise"/>
+				<feDisplacementMap in="SourceGraphic" in2="noise" scale="10"
+				xChannelSelector="R" yChannelSelector="G"/>
+			</filter>
+		</defs>
+	</svg>
+	<div class="layout">
+		<div id="section1">
+			<div style="
+				height: 100%; width: 100%;
+				display:flex;
+				flex-direction: column; 
+				padding-top:90px;
+			">
+				<div  style="display: flex; flex-direction: column; width: fit-content; margin: 0 auto 0 auto; padding: 20px; box-sizing:border-box;
+					color: rgba(70, 70, 70, 1.0);
+					">
+					<div style="display: flex; justify-content: center; align-items:center; gap: 10px; margin-bottom: 16px;">
+						<div style="width: 48px; height: 48px; background:white; overflow: hidden; border-radius: 6px;">
+							<div style="margin-top: auto; height: 100%; width: 100%;">
+								<div class="itemsWrapper">
+									<div class="item0">
+										<div class="item1"></div>
+										<div class="item2"></div>
+									</div>
+								</div>	
+							</div>
+						</div>
+						<span style="font-size: 14px; opacity:.7" >Tomás Posse | <a style="font-size: 14px" href="https://www.instagram.com/tokyyto" target="_blank">@tokyyto</a></span>
+					</div>
+					<span style="font-size: 60px; text-align: end; margin:0 0 24px 0; opacity: .95;">MEDIA</span>
+				</div>
+			</div>
+		</div>	
+		<div id="section2">
+			<div id="section2in2">
+				<!-- LinkedIn iframe -->
+				<div style="padding: 20px 20px 20px 20px; box-sizing: border-box; display: flex; justify-content: center;">
+					<iframe src="https://www.linkedin.com/embed/feed/update/urn:li:ugcPost:7445442002252603392?collapsed=1" height="550" width="504" frameborder="0" allowfullscreen="" title="Embedded post"></iframe>
+				</div>
+				
+				<!-- Assets images in 3 randomized rows -->
+				<div id="assetsRows" style="padding: 0 20px 30px 20px; box-sizing: border-box;"></div>
+				<script>
+				(function() {
+					// All images from the assets folder
+					const allImages = [
+						"auto_0.jpeg","auto_1.jpeg","auto_2.jpeg","auto_3.png","auto_4.jpeg","auto_5.png","auto_6.png","auto_7.png","auto_8.png","auto_9.png",
+						"auto_10.png","auto_11.png","auto_12.png","auto_13.png","auto_14.png","auto_15.png","auto_16.png","auto_17.png","auto_18.png","auto_19.png",
+						"auto_20.png","auto_21.png","auto_22.png","auto_23.png","auto_24.png","auto_25.png","auto_26.webp","auto_27.webp","auto_28.png","auto_29.webp",
+						"auto_30.jpeg","auto_31.png.jpeg","auto_32.jpeg","auto_33.png.jpeg","auto_34.png.jpeg","auto_35.png.jpeg","auto_36.png.jpeg","auto_37.png.jpeg","auto_38.png.jpeg","auto_39.png.jpeg",
+						"auto_40.png.jpeg","auto_41.png.jpeg","auto_42.png.jpeg","auto_43.png.jpeg","auto_44.png.jpeg","auto_45.jpg","auto_46.jpeg","auto_47.jpeg","auto_48.jpeg","auto_49.jpeg",
+						"auto_50.jpeg","auto_51.jpeg","auto_52.png","auto_53.png","auto_54.png","auto_55.png","auto_56.png","auto_57.png","auto_58.png","auto_59.png",
+						"auto_60.png","auto_61.jpeg"
+					];
+					const total = allImages.length; // 62
+					const rows = 3;
+
+					// Shuffle using Fisher-Yates
+					const shuffled = [...allImages];
+					for (let i = shuffled.length - 1; i > 0; i--) {
+						const j = Math.floor(Math.random() * (i + 1));
+						[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+					}
+
+					// Distribute evenly: split into 3 groups (row0 gets extra if remainder)
+					const base = Math.floor(total / rows); // 20
+					const remainder = total % rows;         // 2
+					const groups = [];
+					let idx = 0;
+					for (let r = 0; r < rows; r++) {
+						const size = base + (r < remainder ? 1 : 0);
+						groups.push(shuffled.slice(idx, idx + size));
+						idx += size;
+					}
+
+					const container = document.getElementById("assetsRows");
+					groups.forEach(group => {
+						const row = document.createElement("div");
+						row.style.cssText = "display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px;";
+						group.forEach(filename => {
+							const img = document.createElement("img");
+							img.src = "assets/" + filename;
+							img.style.cssText = "height: 200px; width: auto; object-fit: cover; border-radius: 4px; flex-shrink: 0;";
+							row.appendChild(img);
+						});
+						container.appendChild(row);
+					});
+				})();
+				</script>
+				
+				<div style="margin: 0 0 0px 0; padding: 0px 0px 0 20px; box-sizing: border-box;" hidden>
+					<span style="font-size: 24px; opacity: .62;">Work</span>
+				</div>
+				<div class="section2pre" hidden>
+					<div class="section2row">
+						<div class="sectionParent">
+							<div class="sectionPreImages">
+								<img class="section2imgs" src="../public/images/clients/nba.png">
+							</div>
+							<span class="section2titles">@NBA</span>
+						</div>
+						<div class="sectionParent">
+							<div class="sectionPreImages">
+								<img class="section2imgs" src="../public/images/clients/nxs.png">
+							</div>
+							<span class="section2titles">Nexus Studios</span>
+							<span class="section2subs">U.K.</span>
+						</div>
+						<div class="sectionParent">
+							<div class="sectionPreImages">
+								<img class="section2imgs" src="../public/images/clients/fed.png">
+							</div>
+							<span class="section2titles">@fedez</span>
+						</div>
+						<div class="sectionParent">
+							<div class="sectionPreImages">
+								<img class="section2imgs" src="../public/images/clients/por.png">
+							</div>
+							<span class="section2titles">PorTusOjos campaign by INCUCAI</span>
+							<span class="section2subs">🥇 Cannes Lions Gold</span>
+						</div>
+						<div class="sectionParent">
+							<div class="sectionPreImages">
+								<img class="section2imgs" src="../public/images/clients/tnt.png">
+							</div>
+							<span class="section2titles">TNT Sports</span>
+							<span class="section2subs">Argentina</span>
+						</div>
+						<div class="sectionParent">
+							<div class="sectionPreImages">
+								<img class="section2imgs" src="../public/images/clients/coca.png">
+							</div>
+							<span class="section2titles">Coca-Cola</span>
+							<span class="section2subs">LatAm</span>
+						</div>
+						<div class="sectionParent">
+							<div class="sectionPreImages">
+								<img class="section2imgs" src="../public/images/clients/adi.png">
+							</div>
+							<span class="section2titles">Adidas Installation</span>
+						</div>
+						<div class="sectionParent">
+							<div class="sectionPreImages">
+								<img class="section2imgs" src="../public/images/clients/people.png">
+							</div>
+							<span class="section2titles">@tokyyto</span>
+							<span class="section2subs">5,800 million impressions</span>
+						</div>
+					</div>
+				</div>
+				<div style="margin: 0px 0 0px 0; padding: 0 0px 0 20px; box-sizing: border-box;" hidden>
+					<span style="font-size: 24px; opacity: .62;">Appearances</span>
+				</div>
+				<div class="section2pre" hidden>
+					<div style="display:flex; gap:10px; flex-direction:column;">
+						<div style="flex:1; min-width:0; text-align:end; display: flex; flex-direction:column;">
+						    <div style="aspect-ratio: 1.5 / 1; overflow:hidden;">
+						     	<img class="section2imgs" src="../public/images/press/cck.png">
+						    </div>
+						    <span class="section2titles">Meta Event</span>
+						    <span class="section2subs">@ CCK, Argentina</span>
+						</div>
+						<div style="flex:1; min-width:0; text-align:end; display: flex; flex-direction:column;">
+						    <div style="aspect-ratio: 1.5 / 1; overflow:hidden;">
+						     	<img class="section2imgs" src="../public/images/press/f8.png">
+						    </div>
+						    <span class="section2titles">@F8 by Meta</span>
+						    <span class="section2subs">San José, United States</span>
+						</div>
+						<div style="flex:1; min-width:0; text-align:end; display: flex; flex-direction:column;">
+						    <div style="aspect-ratio: 1.5 / 1; overflow:hidden;">
+						     	<img class="section2imgs" src="../public/images/press/tri.png">
+						    </div>
+						    <span class="section2titles">Trimarchi Festival</span>
+						    <span class="section2subs">Mar del Plata, Argentina</span>
+						</div>
+						<div style="flex:1; min-width:0; text-align:end; display: flex; flex-direction:column;">
+						    <div style="aspect-ratio: 1.5 / 1; overflow:hidden;">
+						     	<img class="section2imgs" src="../public/images/press/meta.png">
+						    </div>
+						    <span class="section2titles">Meta Summit</span>
+						    <span class="section2subs">Argentina</span>
+						</div>
+					</div>
+				</div>
+				<style type="text/css">
+					.section2pre {
+					    padding: 48px 80px 48px 20px;
+					}
+
+					.section2row {
+					    display: flex;
+					    flex-wrap: wrap;
+					    margin-left: -5px;
+					}
+
+					.sectionParent {
+					    width: 25%;
+					    padding: 0 5px;
+					    box-sizing: border-box;
+					    text-align: center;
+					    display: flex;
+					    flex-direction: column;
+					}
+
+					.sectionPreImages {
+					    aspect-ratio: 1 / 1.5;
+					    overflow: hidden;
+					}
+
+					.section2titles {
+					    font-size: 14px;
+					    color: rgb(100, 100, 100);
+					    margin: 16px 0 4px 0;
+					}
+
+					.section2subs {
+					    font-size: 12px;
+					    color: rgb(170, 170, 170);
+					    margin: 0 0 36px 0;
+					    min-height: 18px; /* misma altura en todos */
+					}
+
+					.section2imgs {
+					    width: 100%;
+					    height: 100%;
+					    object-fit: cover;
+					    display: block;
+					    border-radius: 4px;
+					}
+					.metaPartner {
+						padding: 12px 60px 8px 0;
+					}
+
+					@media (max-width: 900px) {
+						.section2pre {
+							padding: 20px 20px 20px 20px;
+						}
+						.metaPartner {
+							padding: 12px 0px 8px 0;
+						}
+					}
+				</style>
+			</div>
+		</div>
+	</div>
+</body>
+</html>
