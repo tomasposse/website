@@ -2,7 +2,9 @@
 import { defineConfig } from 'astro/config';
 
 // https://astro.build/config
-export default defineConfig(({ command }) => ({
-  site: command === 'build' ? 'https://tomasposse.github.io/website' : 'http://localhost:4321',
-  base: command === 'build' ? '/website' : '/',
-}));
+const isDev = import.meta.env.DEV;
+
+export default defineConfig({
+  site: isDev ? 'http://localhost:4321' : 'https://tomasposse.github.io/website',
+  base: isDev ? '/' : '/website',
+});
