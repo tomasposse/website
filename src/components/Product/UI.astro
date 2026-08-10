@@ -1,0 +1,182 @@
+---
+---
+<div class="shell" id="shell">
+  <div class="shell-face">
+    <div class="shell-top"><div class="shell-in" id="shellIn">make something...</div></div>
+    <div class="shell-acts">
+      <button class="shell-btn" aria-label="Add media"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg></button>
+      <button class="shell-btn" aria-label="Voice"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/></svg></button>
+      <button class="shell-btn shell-btn--hide-mobile" aria-label="Code"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></button>
+      <button class="shell-btn shell-btn--hide-mobile--search" aria-label="Search"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg></button>
+      <span class="shell-div"></span>
+      <button class="shell-btn shell-btn--hide-mobile" aria-label="Settings"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg></button>
+      <button class="shell-go" aria-label="Send"><span>Send</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+    </div>
+  </div>
+</div>
+
+<style is:global>
+  @property --a { syntax: '<angle>'; inherits: true; initial-value: 0deg; }
+
+  .shell {
+    width: 100%; max-width: 620px; margin: 0 auto; font-family: 'Quicksand', system-ui, sans-serif;
+    position: relative; padding: 1px; border-radius: 14px; background: transparent;
+  }
+  .shell::before, .shell::after {
+    content: ''; position: absolute; z-index: 0; pointer-events: none;
+    border-radius: 18px;
+    background: conic-gradient(from var(--a),
+      #f472b6 0deg, #fb923c 20deg, #facc15 40deg,
+      #34d399 60deg, #38bdf8 80deg, #818cf8 100deg,
+      #c084fc 120deg, #f472b6 140deg,
+      transparent 150deg, transparent 300deg,
+      #fb923c 320deg, #f472b6 360deg);
+    animation: spinIdle 3s linear infinite;   /* idle: slow continuous spin */
+    transition: opacity 0.4s ease;
+  }
+  .shell::before { inset: -4px; opacity: 0.6; }
+  .shell::after { inset: -9px; filter: blur(6px); opacity: 0.3; }
+  /* Idle / after a load completes the glow unmounts (fades + stops spinning).
+     The UI calls __setGlow(true) to bring it back for each new build, and
+     __setGlow(false) to unmount it once the experience is ready. */
+  .shell.glow-off::before, .shell.glow-off::after {
+    opacity: 0;
+    animation-play-state: paused;
+  }
+  /* One-shot spin used while loading: duration is set inline per load. */
+  .shell.glow-once::before, .shell.glow-once::after {
+    animation: spinOnce var(--spin-ms, 2.6s) linear infinite;
+  }
+  /* Forced off then back on to restart the spin from 0 on each new load. */
+  .shell.restart::before, .shell.restart::after { animation: none; }
+  @keyframes spinIdle { to { --a: 360deg; } }
+  @keyframes spinOnce { from { --a: 0deg; } to { --a: 360deg; } }
+
+  .shell-face {
+    position: relative; width: 100%; height: 100%; border-radius: 13px;
+    background: rgba(255,255,255,0.95); backdrop-filter: blur(8px);
+    overflow: hidden; z-index: 1;
+    display: flex; flex-direction: column;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.04),0 1px 4px rgba(0,0,0,0.02);
+  }
+  .shell-top { flex: 0 0 auto; padding: 12px 14px 4px 14px; min-height: 16px; }
+  .shell-in { color: #1e293b; font-family: 'Quicksand',system-ui,sans-serif; font-size: .82rem; font-weight: 400; line-height: 1.5; min-height: 1.5em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: none; transition: opacity 0.3s ease; }
+  .shell-in.cursor::after { content: '▍'; color: #818cf8; animation: blink 0.9s steps(1) infinite; margin-left: 1px; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .shell-acts { flex: 0 0 auto; display: flex; align-items: center; gap: 1px; padding: 4px 14px 12px 14px; justify-content: flex-end; }
+  .shell-btn { width: 28px; height: 28px; border-radius: 8px; border: none; background: transparent; color: #94a3b8; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all .12s ease; flex-shrink: 0; }
+  .shell-btn:hover { background: #e2e8f0; color: #475569; }
+  .shell-btn:active { background: #cbd5e1; transform: scale(.88); }
+  .shell-div { width: 1px; height: 20px; background: #e2e8f0; margin: 0 4px; flex-shrink: 0; }
+  .shell-go { display: flex; align-items: center; gap: 5px; padding: 0 14px 0 10px; height: 34px; border-radius: 10px; border: none; background: #1e293b; color: #fff; margin-left: 4px; cursor: pointer; transition: all .12s ease; flex-shrink: 0; font-family: inherit; font-size: .78rem; font-weight: 600; letter-spacing: .01em; }
+  .shell-go span { display: inline-block; line-height: 1; }
+  .shell-go svg { display: block; flex-shrink: 0; }
+  .shell-go:hover { background: #334155; box-shadow: 0 2px 10px rgba(30,41,59,0.2); }
+  .shell-go:active { background: #1e293b; transform: scale(.94); }
+  @media (max-width:768px) {
+    .shell { max-width: 100%; }
+    .shell-top { padding: 10px 12px 3px 12px; }
+    .shell-in { font-size: .72rem; }
+    .shell-btn { width: 24px; height: 24px; } .shell-btn svg { width: 11px; height: 11px; }
+    .shell-go { height: 30px; padding: 0 12px 0 8px; font-size: .72rem; } .shell-go svg { width: 14px; height: 14px; }
+    .shell-div { height: 16px; margin: 0 3px; }
+    .shell-acts { padding: 3px 12px 10px 12px; gap: 0; }
+    .shell-btn--hide-mobile { display: none; }
+  }
+  @media (max-width:480px) {
+    .shell-top { padding: 8px 10px 3px 10px; }
+    .shell-in { font-size: .68rem; }
+    .shell-btn { width: 22px; height: 22px; } .shell-btn svg { width: 10px; height: 10px; }
+    .shell-go { height: 28px; padding: 0 10px 0 6px; font-size: .68rem; } .shell-go svg { width: 12px; height: 12px; }
+    .shell-acts { padding: 3px 10px 9px 10px; }
+    .shell-div { height: 14px; margin: 0 2px; }
+    .shell-btn--hide-mobile--search { display: none; }
+  }
+  @media (max-width:380px) {
+    .shell-top { padding: 7px 8px 2px 8px; }
+    .shell-in { font-size: .62rem; }
+    .shell-btn { width: 20px; height: 20px; } .shell-btn svg { width: 9px; height: 9px; }
+    .shell-go { height: 26px; padding: 0 8px 0 4px; font-size: .64rem; } .shell-go svg { width: 11px; height: 11px; }
+    .shell-acts { padding: 2px 8px 8px 8px; }
+    .shell-div { height: 12px; margin: 0 1px; }
+  }
+</style>
+
+<script>
+  declare global {
+    interface Window {
+      __clearPrompt?: () => void;
+      __typePrompt?: (text?: string) => void;
+      __setGlow?: (on: boolean, ms?: number) => void;
+    }
+  }
+
+  const shellIn = document.getElementById('shellIn');
+  const shell = document.getElementById('shell');
+  const PROMPT = 'make something...';
+
+  // Fade the prompt out softly, then empty it (avoids an abrupt vanish).
+  window.__clearPrompt = function() {
+    if (!shellIn) return;
+    shellIn.style.transition = 'opacity 0.3s ease';
+    shellIn.style.opacity = '0';
+    window.setTimeout(() => {
+      shellIn.textContent = '';
+      shellIn.classList.remove('cursor');
+    }, 300);
+  };
+
+  // Type the prompt back in, character by character — "m", "ma", "mak", ...
+  // The text stays fully visible while it types so the incremental reveal is
+  // actually seen (the cursor blinks as each char lands). Accepts an optional
+  // custom message.
+  window.__typePrompt = function(text) {
+    if (!shellIn) return;
+    const target = text || PROMPT;
+    // keep it visible the whole time — only the characters animate, not the fade
+    shellIn.style.transition = 'none';
+    shellIn.style.opacity = '1';
+    shellIn.classList.add('cursor');
+    shellIn.textContent = '';
+    let i = 0;
+    const timer = window.setInterval(() => {
+      i++;
+      shellIn.textContent = target.slice(0, i);
+      if (i >= target.length) {
+        window.clearInterval(timer);
+        window.setTimeout(() => shellIn.classList.remove('cursor'), 700);
+      }
+    }, 55);
+  };
+
+  // Icon (svg) buttons are purely decorative: they keep their hover colours
+  // but never trigger the "start / cycle" behaviour of the rest of the UI.
+  document.querySelectorAll('.shell-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => e.stopPropagation());
+    btn.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: false });
+  });
+
+  // Glow control:
+  //   on: fade in + spin. When `ms` is given, it spins exactly ONE full
+  //       rotation over `ms` (matching the load duration); otherwise it uses
+  //       the idle slow spin. Starts (and the shell's default) spin on idle.
+  //   off: unmount (fade out + stop).
+  window.__setGlow = function(on, ms) {
+    if (!shell) return;
+    if (on) {
+      if (typeof ms === 'number') {
+        shell.style.setProperty('--spin-ms', ms + 'ms');
+        shell.classList.add('glow-once');
+      } else {
+        shell.classList.remove('glow-once');
+      }
+      shell.classList.remove('glow-off');
+      // restart the animation from 0 each time
+      shell.classList.add('restart');
+      void shell.offsetWidth;
+      shell.classList.remove('restart');
+    } else {
+      shell.classList.add('glow-off');
+    }
+  };
+</script>

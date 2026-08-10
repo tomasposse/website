@@ -1,0 +1,124 @@
+---
+import { EXPERIENCE_DEV } from './experiences/experience-config';
+import { experiences } from './experiences/EXPERIENCE_MANIFEST';
+
+function shuffle<T>(items: T[]): T[] {
+  const result = [...items];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+function orderExperiences<T extends { firstPositionWeight?: number }>(items: T[]): T[] {
+  const weighted = items.find((item) => (item.firstPositionWeight ?? 0) > 0);
+  if (!weighted || Math.random() >= (weighted.firstPositionWeight ?? 0)) return shuffle(items);
+  return [weighted, ...shuffle(items.filter((item) => item !== weighted))];
+}
+
+const ordered = orderExperiences(experiences);
+---
+
+<div class="browser" id="browser" data-experiences={JSON.stringify(ordered.map(({ id, title, description }) => ({ id, title, description })))} data-experience-dev={EXPERIENCE_DEV ? '1' : '0'}>
+  <div class="experience-host" id="experience-host"></div>
+</div>
+
+<script>
+  import { experiences } from './experiences/EXPERIENCE_MANIFEST';
+
+  const browser = document.getElementById('browser');
+  const host = document.getElementById('experience-host');
+  if (!(browser instanceof HTMLElement) || !(host instanceof HTMLElement)) throw new Error('Experience panel host is missing');
+  const panelBrowser = browser;
+  const experienceHost = host;
+
+  type Runtime = { destroy: () => void };
+  type Factory = (host: HTMLElement) => Runtime;
+  type Definition = { id: string; title: string; description: string };
+  const definitions = JSON.parse(panelBrowser.dataset.experiences || '[]') as Definition[];
+  let active: Runtime | null = null;
+  let switchPromise: Promise<void> | null = null;
+  let pendingIndex: number | null = null;
+  const factoryCache = new Map<string, Promise<Factory>>();
+
+  declare global {
+    interface Window {
+      __expCount?: number;
+      __expTitles?: string[];
+      __getRandomExperience?: () => number;
+      __switchExperience?: (index: number) => Promise<void>;
+      __prepareExperience?: (index: number) => void;
+    }
+  }
+
+  window.__expCount = definitions.length;
+  window.__expTitles = definitions.map(({ title }) => title);
+  window.__getRandomExperience = () => Math.floor(Math.random() * definitions.length);
+
+  function destroyActive() {
+    active?.destroy();
+    active = null;
+    experienceHost.replaceChildren();
+    panelBrowser.closest<HTMLElement>('.product-experience')?.classList.remove('ready');
+  }
+
+  function loadFactory(definition: Definition): Promise<Factory> {
+    const cached = factoryCache.get(definition.id);
+    if (cached) return cached;
+    const manifestEntry = experiences.find((item) => item.id === definition.id);
+    if (!manifestEntry) return Promise.reject(new Error(`Unknown experience: ${definition.id}`));
+    const promise = manifestEntry.load();
+    factoryCache.set(definition.id, promise);
+    return promise;
+  }
+
+  // Preload code and dependencies during Product's loading card. This avoids
+  // doing an async module import after the card disappears. We deliberately do
+  // not create a hidden runtime/renderer: WebGL resources need a real viewport
+  // and creating then destroying them would waste GPU work on mobile.
+  function prepareExperience(index: number) {
+    const definition = definitions[index];
+    if (definition) void loadFactory(definition).catch((error) => console.error('Experience preload failed', definition.id, error));
+  }
+
+  function switchExperience(index: number): Promise<void> {
+    if (!definitions[index]) return Promise.resolve();
+    pendingIndex = index;
+    if (switchPromise) return switchPromise;
+
+    switchPromise = (async () => {
+      while (pendingIndex !== null) {
+        const target = pendingIndex;
+        pendingIndex = null;
+        const definition = definitions[target];
+        try {
+          destroyActive();
+          const factory = await loadFactory(definition);
+          active = factory(experienceHost);
+          panelBrowser.closest<HTMLElement>('.product-experience')?.classList.add('ready');
+        } catch (error) {
+          panelBrowser.closest<HTMLElement>('.product-experience')?.classList.add('ready');
+          console.error('Experience failed to load', definition.id, error);
+          experienceHost.textContent = `Experience failed to load: ${definition.title}`;
+        }
+      }
+    })().finally(() => {
+      switchPromise = null;
+    });
+
+    return switchPromise;
+  }
+
+  window.__switchExperience = switchExperience;
+  window.__prepareExperience = prepareExperience;
+
+  // Product.astro selects the initial experience after its entrance gesture.
+  // The manager does not mount anything before the stage is active.
+</script>
+
+<style>
+  .browser { width: 100%; height: 100%; min-height: 0; display: flex; flex: 1; flex-direction: column; }
+  .experience-host { position: relative; width: 100%; height: 100%; min-height: 0; flex: 1; overflow: hidden; background: #0a0a14; }
+  .experience-host > * { width: 100%; height: 100%; min-height: 0; }
+</style>

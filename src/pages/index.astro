@@ -1,0 +1,58 @@
+---
+import Augmented from "../components/Augmented.astro";
+import Product from "../components/Product.astro";
+import "../styles/global.css";
+
+import Text from "../components/Shared/Text.astro";
+// import Text2 from "../components/Shared/Text2.astro"
+// <Text2 text="Augmented Reality" fontSize={100}  ink="rgba(27,27,27,1)" accent="rgba(124,77,255,1)" />
+---
+
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="icon" href="/favicon.ico" />
+		<meta name="viewport" content="width=device-width" />
+		<title>Tomás Posse</title>
+	</head>
+	<body>
+		<div style="width: 100%;">
+			<div
+				style="display: flex;  height: 100dvh; flex-direction: column;"
+			>
+				<nav class="top-nav">
+					<Text
+						text="Tomás Posse | @tokyyto"
+						fontSize={84}
+						colorVariation={1}
+					/>
+				</nav>
+				<Product />
+			</div>
+			<div style="position: relative;">
+				<div
+					style="position: absolute; width: 100%; filter: blur(120px);"
+				>
+				</div>
+				<div style="position: absolute; width: 100%;">
+					<Augmented />
+				</div>
+			</div>
+		</div>
+	</body>
+</html>
+
+<style>
+	.top-nav {
+		padding: 8px 24px;
+		border-bottom: 1px solid #e2e8f0;
+		background: #f8fafc;
+	}
+	.nav-name {
+		font-family: "Quicksand", system-ui, sans-serif;
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: #1e293b;
+	}
+</style>

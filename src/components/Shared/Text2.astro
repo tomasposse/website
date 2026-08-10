@@ -1,0 +1,165 @@
+---
+interface Props {
+  /** The letter/word to warp (single char reads largest). */
+  text?: string;
+  /** Background ("paper") colour. */
+  paper?: string;
+  /** Letter ("ink") colour. */
+  ink?: string;
+  /** Chromatic-fringe accent colour. */
+  accent?: string;
+  /** Grid columns; rows derived from the 16:9 aspect. */
+  tiles?: number;
+  /** Max source displacement, CSS px. */
+  offset?: number;
+  /** Wave speed per frame. */
+  speed?: number;
+  /** x*y phase term — low = uniform, high = turbulent. */
+  spread?: number;
+  /** Chromatic-split strength 0..1. */
+  chroma?: number;
+  /** Depth-shading strength 0..1. */
+  shade?: number;
+  /** Grain/scanline strength 0..1. */
+  grain?: number;
+  /** Letter size in px (0 = auto-fit to the stage). */
+  fontSize?: number;
+  /** Display face; defaults to Quicksand. */
+  fontFamily?: string;
+  /** Playground mode: square bottom so a panel tucks beneath. */
+  flush?: boolean;
+  class?: string;
+}
+
+const {
+  text = "a",
+  paper = "rgba(0,0,0,0)",
+  ink = "rgba(255,255,255,1)",
+  accent = "rgba(124,77,255,1)",
+  tiles = 34,
+  offset = 26,
+  speed = 0.02,
+  spread = 0.025,
+  chroma = 0.35,
+  shade = 0.35,
+  grain = 0.7,
+  fontSize = 0,
+  fontFamily = "Quicksand",
+  flush = false,
+  class: className = "",
+} = Astro.props;
+
+// Detect a "no background" paper (named transparent, or rgba alpha 0).
+const transparentPaper =
+  paper.trim().toLowerCase() === "transparent" ||
+  /rgba\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*,\s*0(?:[\s.0]*)?\)/i.test(
+    paper.trim()
+  );
+---
+
+<div
+  class={[
+    "kinetic-host",
+    flush && "kinetic-host--flush",
+    className,
+  ]
+    .filter(Boolean)
+    .join(" ")}
+  data-kinetic
+  data-text={text}
+  data-paper={paper}
+  data-ink={ink}
+  data-accent={accent}
+  data-tiles={tiles}
+  data-offset={offset}
+  data-speed={speed}
+  data-spread={spread}
+  data-chroma={chroma}
+  data-shade={shade}
+  data-grain={grain}
+  data-font-size={fontSize}
+  data-font-family={fontFamily}
+  data-flush={flush ? "1" : "0"}
+  style={transparentPaper ? "background:transparent" : `background:${paper}`}
+></div>
+
+<script>
+  import { KineticA } from "./Text2/engine";
+
+  const hosts = document.querySelectorAll<HTMLDivElement>("[data-kinetic]");
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const instances: KineticA[] = [];
+
+  hosts.forEach((host) => {
+    const num = (k: string, d: number) =>
+      Number(host.getAttribute(`data-${k}`) ?? d);
+
+    const engine = new KineticA(host, {
+      text: host.getAttribute("data-text") ?? "a",
+      paper: host.getAttribute("data-paper") ?? "rgba(0,0,0,0)",
+      ink: host.getAttribute("data-ink") ?? "rgba(0,0,0,1)",
+      accent: host.getAttribute("data-accent") ?? "rgba(124,77,255,1)",
+      tiles: num("tiles", 34),
+      offset: num("offset", 26),
+      speed: num("speed", 0.02),
+      spread: num("spread", 0.025),
+      chroma: num("chroma", 0.35),
+      shade: num("shade", 0.35),
+      grain: num("grain", 0.7),
+      fontSize: num("font-size", 0),
+      fontFamily: host.getAttribute("data-font-family") ?? "Quicksand",
+    });
+    instances.push(engine);
+
+    // Size the box to the letter (it starts as a fixed banner placeholder).
+    engine.fitToText();
+
+    // Repaint the letter once the display face loads (first paint uses fallback).
+    if (document.fonts?.ready) {
+      document.fonts.ready.then(() => engine.refreshLetter());
+    }
+
+    const ro = new ResizeObserver(() => engine.resize());
+    ro.observe(host);
+
+    if (reduce) {
+      engine.renderStatic();
+      return;
+    }
+
+    let onScreen = true;
+    let hidden = false;
+    const running = () => onScreen && !hidden;
+    const sync = () => (running() ? engine.start() : engine.stop());
+    sync();
+
+    const io = new IntersectionObserver((es) => {
+      onScreen = es[0]?.isIntersecting ?? true;
+      sync();
+    });
+    io.observe(host);
+    const onVis = () => {
+      hidden = document.hidden;
+      sync();
+    };
+    document.addEventListener("visibilitychange", onVis);
+  });
+
+  window.addEventListener("beforeunload", () => {
+    instances.forEach((e) => e.destroy());
+  });
+</script>
+
+<style>
+  /* Inline + auto-sized: engine.fitToText() sets the exact width/height. */
+  .kinetic-host {
+    position: relative;
+    display: inline-block;
+    overflow: hidden;
+  }
+  .kinetic-host--flush {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+</style>

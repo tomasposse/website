@@ -1,0 +1,325 @@
+---
+import a from "/src/assets/images/work/1.webp";
+import b from "/src/assets/images/work/2.webp";
+import c from "/src/assets/images/work/3.webp";
+
+import d from "/src/assets/images/work/4.webp";
+import e from "/src/assets/images/work/5.webp";
+import f from "/src/assets/images/work/6.webp";
+
+import g from "/src/assets/images/work/7.webp";
+import h from "/src/assets/images/work/8.webp";
+import i from "/src/assets/images/work/9.webp";
+
+
+const images = [
+    [a.src, d.src, g.src],
+    [b.src, e.src, h.src],
+    [c.src, f.src, i.src]
+];
+---
+
+
+
+    {images.map(() => (
+        <div class="img-wrap">
+            <img class="image-layer" />
+            <img class="image-layer" />
+        </div>
+    ))}
+
+
+
+
+<style>
+
+:root {
+    --fade-duration: 1200ms;
+}
+
+
+
+
+.img-wrap {
+
+    position:relative;
+
+    /* width:146px; */
+    /* height:300px; */
+
+    width: 30%;
+    aspect-ratio: 1/1.75;
+
+    overflow:hidden;
+
+    border-radius:10px;
+}
+
+
+.image-layer {
+
+    position:absolute;
+
+    inset:0;
+
+    width:100%;
+    height:100%;
+
+
+    object-fit:cover;
+
+    border-radius:10px;
+
+
+    opacity:0;
+
+
+    transition:
+        opacity var(--fade-duration)
+        cubic-bezier(.22,1,.36,1);
+
+
+    box-shadow:
+        rgba(50,50,93,.25) 0 6px 12px -2px,
+        rgba(0,0,0,.3) 0 3px 7px -3px;
+
+}
+
+
+.image-layer.visible {
+
+    opacity:1;
+
+}
+
+</style>
+
+
+
+<script is:inline define:vars={{ images }}>
+
+
+/*
+|--------------------------------------------------------------------------
+| CONFIGURATION
+|--------------------------------------------------------------------------
+*/
+
+const CONFIG = {
+
+    // distance between each wave element
+    // smaller than fade = overlap
+    waveOffset: 100,
+
+
+    // image fade duration
+    fadeDuration: 1200,
+
+
+    // pause after the whole wave finishes
+    pause: 3000
+
+};
+
+
+
+document.documentElement.style.setProperty(
+    "--fade-duration",
+    `${CONFIG.fadeDuration}ms`
+);
+
+
+
+
+/*
+|--------------------------------------------------------------------------
+| INITIAL STATE
+|--------------------------------------------------------------------------
+*/
+
+
+const boxes =
+    document.querySelectorAll(".img-wrap");
+
+
+const columns = [];
+
+
+boxes.forEach((box,index)=>{
+
+
+    const layers =
+        box.querySelectorAll(".image-layer");
+
+
+    // FIRST IMAGE ALWAYS
+
+    layers[0].src =
+        images[index][0];
+
+
+    layers[0].classList.add(
+        "visible"
+    );
+
+
+
+    columns.push({
+
+        layers,
+
+        active:0
+
+    });
+
+
+});
+
+
+
+let frame = 0;
+
+
+
+
+/*
+|--------------------------------------------------------------------------
+| HELPERS
+|--------------------------------------------------------------------------
+*/
+
+
+function wait(ms){
+
+    return new Promise(resolve =>
+        setTimeout(resolve,ms)
+    );
+
+}
+
+
+
+
+function changeColumn(index,frame){
+
+
+    const column =
+        columns[index];
+
+
+    const current =
+        column.layers[column.active];
+
+
+    const next =
+        column.layers[
+            column.active === 0 ? 1 : 0
+        ];
+
+
+
+    next.src =
+        images[index][frame];
+
+
+
+    requestAnimationFrame(()=>{
+
+
+        next.classList.add(
+            "visible"
+        );
+
+
+        current.classList.remove(
+            "visible"
+        );
+
+
+    });
+
+
+
+    column.active =
+        column.active === 0
+        ? 1
+        : 0;
+
+}
+
+
+
+
+/*
+|--------------------------------------------------------------------------
+| WAVE ENGINE
+|--------------------------------------------------------------------------
+*/
+
+
+async function animateWave(){
+
+
+    while(true){
+
+
+        await wait(CONFIG.pause);
+
+
+
+        frame =
+            (frame + 1)
+            %
+            images[0].length;
+
+
+
+        // fire all animations independently
+
+        changeColumn(
+            0,
+            frame
+        );
+
+
+        await wait(
+            CONFIG.waveOffset
+        );
+
+
+        changeColumn(
+            1,
+            frame
+        );
+
+
+        await wait(
+            CONFIG.waveOffset
+        );
+
+
+        changeColumn(
+            2,
+            frame
+        );
+
+
+
+        // wait until the last fade is done
+
+        await wait(
+            CONFIG.fadeDuration
+        );
+
+
+    }
+
+}
+
+
+
+
+animateWave();
+
+
+</script>

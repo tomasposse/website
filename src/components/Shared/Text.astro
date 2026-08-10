@@ -1,0 +1,64 @@
+---
+interface Props {
+  text?: string;
+  fontSize?: number;
+  colorVariation?: number;
+  class?: string;
+}
+
+const {
+  text = "design is how it works",
+  fontSize = 72,
+  colorVariation = 1,
+  class: className = "",
+} = Astro.props;
+---
+
+<div
+  class={["design-tiles-host", className].join(" ").trim()}
+  data-design-tiles
+  data-text={text}
+  data-font-size={fontSize}
+  data-color-variation={colorVariation}
+></div>
+
+<script>
+  import { DesignTiles } from "./Text/engine";
+
+  const hosts = document.querySelectorAll<HTMLElement>("[data-design-tiles]");
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const instances: DesignTiles[] = [];
+
+  hosts.forEach((host) => {
+    const tiles = new DesignTiles(host, {
+      text: host.getAttribute("data-text") ?? undefined,
+      fontSize: Number(host.getAttribute("data-font-size") ?? 72),
+      colorVariation: Number(host.getAttribute("data-color-variation") ?? 1),
+    });
+    instances.push(tiles);
+    if (reduce) {
+      tiles.renderStill();
+    } else {
+      tiles.start();
+    }
+  });
+
+  if (document.fonts?.ready) {
+    document.fonts.ready.then(() => {
+      instances.forEach((t) => t.refreshFont());
+    });
+  }
+
+  window.addEventListener("beforeunload", () => {
+    instances.forEach((t) => t.destroy());
+  });
+</script>
+
+<style>
+  .design-tiles-host {
+    position: relative;
+    width: 100%;
+    height: clamp(2.4rem, 6vw, 4.2rem);
+  }
+</style>

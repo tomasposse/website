@@ -1,0 +1,660 @@
+---
+import UI from "./Product/UI.astro";
+import { EXPERIENCE_DEV } from "./Product/experiences/experience-config";
+import ExperiencesPanel from "./Product/ExperiencesPanel.astro";
+---
+
+<div class="product" id="product" data-experience-dev={EXPERIENCE_DEV ? '1' : '0'}>
+  <div class="product-centered" id="centered">
+    <div class="product-stage" id="stage">
+      <!-- Loading animation -->
+      <div class="product-loading" id="loading">
+        <div class="loading-card">
+          <div class="loading-svg">
+            <svg width="44" height="44" viewBox="0 0 44 44">
+              <rect x="1" y="1" width="42" height="42" rx="6" fill="none" stroke="rgba(68,136,255,0.15)" stroke-width="2"/>
+              <text x="22" y="29" text-anchor="middle" font-family="monospace" font-size="20" font-weight="700" fill="rgba(68,136,255,0.5)">&lt;/&gt;</text>
+              <rect x="1" y="1" width="42" height="42" rx="6" fill="none" stroke="rgba(68,136,255,0.6)" stroke-width="2"
+                stroke-dasharray="140" stroke-dashoffset="120" stroke-linecap="round"
+                style="animation: draw-in 1.8s linear infinite"/>
+            </svg>
+          </div>
+          <div class="loading-code">
+            <div class="lc lc-s" id="lc1"><span class="kw">import</span> <span class="s">&#123;</span> <span class="id">Experience</span> <span class="s">&#125;</span> <span class="kw">from</span> <span class="str">'three/addons'</span><span class="p">;</span></div>
+            <div class="lc lc-s" id="lc2"><span class="kw">const</span> <span class="id">scene</span> <span class="op">=</span> <span class="kw">new</span> <span class="id">Scene</span><span class="p">();</span></div>
+            <div class="lc lc-s" id="lc3"><span class="id">scene</span><span class="p">.</span><span class="id">background</span> <span class="op">=</span> <span class="kw">new</span> <span class="id">Color</span><span class="p">(</span><span class="num">0x020208</span><span class="p">);</span></div>
+            <div class="lc lc-s" id="lc4"><span class="kw">const</span> <span class="id">camera</span> <span class="op">=</span> <span class="kw">new</span> <span class="id">PerspectiveCamera</span><span class="p">(</span><span class="num">45</span><span class="p">,</span> <span class="num">1</span><span class="p">,</span> <span class="num">0.1</span><span class="p">,</span> <span class="num">80</span><span class="p">);</span></div>
+            <div class="lc lc-s" id="lc5"><span class="cm">// loading geometry modules...</span></div>
+            <div class="lc lc-s" id="lc6"><span class="id">renderer</span><span class="p">.</span><span class="id">toneMapping</span> <span class="op">=</span> <span class="id">ACESFilmic</span><span class="p">;</span></div>
+            <div class="lc" id="lc7"><span class="ok">&#10003; ready</span></div>
+          </div>
+          <div class="loading-progress"><div class="loading-bar" id="lbar"></div></div>
+        </div>
+        <div class="loading-revisit" id="loadingRevisit">
+          <div class="revisit-text">Opening again&hellip;</div>
+          <div class="loading-progress"><div class="loading-bar" id="revisitBar"></div></div>
+        </div>
+      </div>
+
+      <!-- Experience -->
+      <div class="product-experience" id="experience">
+        <ExperiencesPanel />
+      </div>
+    </div>
+
+    <!-- Bottom: options (left) and chat (right). -->
+    <div class="bottom" id="bottom">
+      <div class="side side--left">
+        <!-- Selector -->
+        <div class="selector" id="selector"></div>
+      </div>
+
+      <div class="side side--right">
+        <!-- Chat -->
+        <div class="product-hero" id="hero">
+          <div class="product-hero-inner">
+            <div class="product-prompt">
+              <UI />
+            </div>
+            <p class="product-hint">click anywhere to begin</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  declare global {
+    interface Window {
+      __getRandomExperience?: () => number;
+      __switchExperience?: (index: number) => Promise<void>;
+      __prepareExperience?: (index: number) => void;
+      __expTitles?: string[];
+      __clearPrompt?: () => void;
+      __typePrompt?: (text?: string) => void;
+      __setGlow?: (on: boolean, ms?: number) => void;
+    }
+  }
+
+  const P = document.getElementById('product')!;
+  const C = document.getElementById('centered')!;
+  const S = document.getElementById('stage')!;
+  const H = document.getElementById('hero')!;
+  const SEL = document.getElementById('selector')!;
+  const LD = document.getElementById('loading')!;
+  const EX = document.getElementById('experience')!;
+  const LB = document.getElementById('lbar')!;
+  const RB = document.getElementById('revisitBar')!;
+
+  let started = false;
+  let currentIdx = 0;
+  const experienceDev = P.dataset.experienceDev === '1';         // the experience currently shown
+  let justStarted = false;
+  let visited: boolean[] = [];  // experiences already passed by (ungreyed)
+  let done: boolean[] = [];     // experiences whose load has already completed
+
+  // ── Single in-flight transition manager ───────────────────────────────
+  // Only ONE transition may be active at a time. Rapid clicks are coalesced:
+  // if a transition is already running we just retarget its pending node and
+  // let the single timer complete — nothing restarts, nothing stacks, and
+  // the coding screen can never appear after a revisit.
+  let transKind: 'load' | 'revisit' | null = null;  // locked at start
+  let transTarget = -1;                             // latest requested node
+  let loadToken = 0;                                // guards the one timer
+
+  const lines = [1, 2, 3, 4, 5, 6, 7].map(i => document.getElementById('lc' + i));
+  const LINE_DELAYS = [100, 400, 700, 1000, 1400, 1700, 2200];
+  const LOAD_MS = 2600;
+  const REVISIT_MS = 900;
+
+  function readMeta(): { titles: string[]; count: number } {
+    const titles = window.__expTitles || [];
+    return { titles, count: titles.length };
+  }
+
+  function resetLoadVisuals() {
+    lines.forEach(l => { if (l) l.style.opacity = '0'; });
+    if (LB) { LB.style.transition = 'none'; LB.style.width = '0%'; }
+    if (RB) { RB.style.transition = 'none'; RB.style.width = '0%'; }
+  }
+
+  // Request to go to `idx`. Coalesces rapid clicks into the running transition.
+  function go(idx: number) {
+    const { count } = readMeta();
+    if (idx < 0 || idx >= count) return;
+    if (idx === currentIdx && done[currentIdx]) return; // already shown & idle
+
+    // Dev mode is for direct experience work: switching is immediate and never
+    // enters either the first-load or revisit transition.
+    if (experienceDev) {
+      void activateExperience(idx);
+      return;
+    }
+
+    // Start importing the runtime while the loading/revisit card is visible.
+    window.__prepareExperience?.(idx);
+
+    // While anything is loading or being revisited, ignore further clicks.
+    // The current transition always finishes untouched — no hijacking, no
+    // retargeting, nothing stacks or fires off.
+    if (transKind !== null) return;
+
+    beginTransition(idx);
+  }
+
+  function beginTransition(idx: number) {
+    transTarget = idx;
+    transKind = done[idx] ? 'revisit' : 'load';
+
+    // One token per transition, grabbed FIRST so both the line reveal timers
+    // and the completion timer share the same guard value. Incrementing here
+    // also invalidates any timers left over from a previous transition.
+    const token = ++loadToken;
+
+    if (window.__clearPrompt) window.__clearPrompt();
+    resetLoadVisuals();
+    void LD.offsetHeight; // flush so the bar restart is visible
+
+    if (transKind === 'revisit') {
+      LD.classList.add('active', 'revisit');
+      requestAnimationFrame(() => {
+        if (RB) { RB.style.transition = 'width 0.85s ease-in-out'; RB.style.width = '100%'; }
+      });
+    } else {
+      LD.classList.add('active');
+      LINE_DELAYS.forEach((delay, i) => {
+        if (!lines[i]) return;
+        window.setTimeout(() => {
+          if (token === loadToken) {
+            lines[i]!.style.transition = 'opacity 0.25s ease';
+            lines[i]!.style.opacity = '1';
+          }
+        }, delay);
+      });
+      requestAnimationFrame(() => {
+        if (LB) { LB.style.transition = 'width 2.4s ease-in-out'; LB.style.width = '100%'; }
+      });
+    }
+
+    EX.classList.remove('ready');
+    updateSelectorActive();
+
+    // Exactly ONE timer per transition. It rewrites its target when a rapid
+    // click retargets, so it always reveals the latest requested experience.
+    const ms = transKind === 'revisit' ? REVISIT_MS : LOAD_MS;
+
+    // Glow: one full spin timed to the load (coding 2.6s, revisit 0.9s).
+    if (window.__setGlow) window.__setGlow(true, ms);
+
+    window.setTimeout(() => {
+      if (token === loadToken) void finishTransition();
+    }, ms);
+  }
+
+  async function finishTransition() {
+    const idx = transTarget;
+    transKind = null;
+    loadToken++; // invalidate any stray timers
+
+    // Hide the overlay instantly (no fade-out) so the card swap is never
+    // visible — otherwise, during the fade, the default coding card would
+    // flash right as the experience appears.
+    LD.style.transition = 'none';
+    LD.classList.remove('active', 'revisit');
+    void LD.offsetHeight; // reflow so the next fade-in starts fresh
+    LD.style.transition = '';
+
+    await activateExperience(idx);
+  }
+
+  async function activateExperience(idx: number) {
+    currentIdx = idx;
+    done[idx] = true;
+
+    if (window.__switchExperience) await window.__switchExperience(idx);
+    if (window.__setGlow) window.__setGlow(false);
+    if (!visited[idx]) visited[idx] = true;
+    updateSelectorActive();
+
+    // Rewrite the prompt (typed back out). Once every experience is visited
+    // the message changes.
+    const { count } = readMeta();
+    const allVisited = count > 0 && Array.from({ length: count }, (_, i) => visited[i]).every(Boolean);
+    const msg = allVisited ? 'let\'s revisit our creations...' : 'make something...';
+    if (window.__typePrompt) window.__typePrompt(msg);
+  }
+
+  function buildSelector(activeIdx: number) {
+    const { titles } = readMeta();
+    const astroAttr = Array.from(SEL.attributes).find(a => a.name.startsWith('data-astro-cid-'));
+    const attrName = astroAttr ? astroAttr.name : '';
+    SEL.innerHTML = '';
+    titles.forEach((title, i) => {
+      const b = document.createElement('button');
+      b.className = 'sel';
+      if (attrName) b.setAttribute(attrName, '');
+      b.textContent = title;
+      b.dataset.index = String(i);
+      b.setAttribute('aria-pressed', 'false');
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        go(i);
+      });
+      SEL.appendChild(b);
+    });
+    updateSelectorActive();
+  }
+
+  function updateSelectorActive() {
+    SEL.querySelectorAll('.sel').forEach((x, i) => {
+      const isVisited = visited[i] === true;
+      const isActive = transKind === null && i === currentIdx;
+      x.classList.toggle('sel--on', isActive);
+      x.classList.toggle('sel--loading', transKind !== null && i === transTarget);
+      x.classList.toggle('sel--new', !isVisited);
+      x.setAttribute('aria-pressed', String(isActive));
+    });
+  }
+
+  function start() {
+    if (started) return;
+    started = true;
+    justStarted = !experienceDev;
+    if (!experienceDev) window.setTimeout(() => { justStarted = false; }, 350);
+    P.classList.add('entered');
+    C.classList.add('entered');
+    S.classList.add('entered');
+    H.classList.add('entered');
+
+    const { count } = readMeta();
+    let idx = window.__getRandomExperience ? window.__getRandomExperience() : 0;
+    if (idx < 0 || idx >= count) idx = 0;
+    if (experienceDev) {
+      for (let i = 0; i < count; i++) { visited[i] = true; done[i] = true; }
+      buildSelector(idx);
+      window.__prepareExperience?.(idx);
+      void activateExperience(idx);
+      return;
+    }
+
+    visited[idx] = true;   // the first one you land on is passed by
+    buildSelector(idx);
+    window.__prepareExperience?.(idx);
+    go(idx);
+  }
+
+  // Clicking the chat ("make something") picks a random experience — prefers
+  // one that hasn't loaded yet, otherwise any random different one.
+  function cycle() {
+    if (!started) return;
+    const { count } = readMeta();
+    if (count <= 1) return;
+    const undone: number[] = [];
+    for (let i = 0; i < count; i++) if (!done[i]) undone.push(i);
+    let candidates = undone.length ? undone : Array.from({ length: count }, (_, i) => i);
+    candidates = candidates.filter(i => i !== currentIdx);
+    if (!candidates.length) candidates = [currentIdx];
+    const idx = candidates[Math.floor(Math.random() * candidates.length)];
+    go(idx);
+  }
+
+  // First click anywhere starts the experience in normal presentation mode.
+  // Dev mode starts immediately so an experience is ready while editing.
+  if (experienceDev) {
+    window.setTimeout(start, 0);
+  } else {
+    P.addEventListener('click', () => { if (!started) start(); });
+    P.addEventListener('touchstart', (e) => {
+      if (!started) { e.preventDefault(); start(); }
+    }, { passive: false });
+  }
+
+  // After start, clicking the chat ("make something") picks a random experience.
+  H.addEventListener('click', () => {
+    if (justStarted) { justStarted = false; return; }
+    if (started) cycle();
+  });
+  H.addEventListener('touchstart', (e) => {
+    if (justStarted) { justStarted = false; return; }
+    if (started) { e.preventDefault(); cycle(); }
+  }, { passive: false });
+</script>
+
+<style>
+  .product {
+    width: 100%;
+    /* height: calc(100vh - 40px); */
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(to bottom, #ADD8E6 -100%, #ecfeff 100%);
+    font-family: 'Quicksand', system-ui, sans-serif;
+
+    padding: 20px 10px;
+    box-sizing: border-box;
+    min-height: 0;
+  }
+  .product-centered {
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .product-stage {
+    width: 100%;
+    max-width: 900px;
+    flex: 0;
+    height: 0;
+    overflow: hidden;
+    opacity: 0;
+    position: relative;
+    transition: opacity 0.5s ease 0.1s;
+  }
+  .product-stage.entered {
+    flex: 1;
+    /* flex: 0 1 auto;                   */
+    /* height: clamp(280px, 46vh, 620px); */
+    min-height: 0;
+    max-height: none;
+    opacity: 1;
+    width: 100%;
+    max-width: 800px;
+    padding: 0;
+    position: relative;
+    display: block;
+    overflow: hidden;
+    border-radius: 10px;              /* single source of truth — parent clips */
+  }
+  /* Bottom: stacked normally. */
+  .bottom {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    /* gap: 14px; */
+    width: 100%;
+    max-width: 900px;
+    box-sizing: border-box;
+  }
+  .side {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    min-width: 0;
+    width: 100%;
+    transition: flex 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+                flex-basis 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+                width 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  /* show the options once started */
+  .product-centered.entered .selector {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* ── Loading (overlay layer; no background behind it) ── */
+  .product-loading {
+    position: absolute;
+    inset: 0;
+    z-index: 2;                       /* above the experience while loading */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.35s ease;
+    overflow: hidden;                 /* never let content spill past the panel */
+  }
+  .product-loading.active {
+    opacity: 1;
+    pointer-events: auto;
+    background: rgba(100,116,139,0.14);   /* gray tint while loading */
+  }
+
+  /* Revisit (already-made experience): same card as loading, but with a
+     distinct "already built / opening" message — not the coding screen. */
+  .product-loading.revisit .loading-card {
+    display: none;
+  }
+  .product-loading.revisit .loading-revisit {
+    display: flex;
+  }
+
+  /* Loading card — its natural size is driven by the svg + code lines +
+     progress bar. Leave it untouched. */
+  .loading-card {
+    background: rgba(255,255,255,0.92);
+    border: 1px solid rgba(226,232,240,0.6);
+    border-radius: 16px;
+    padding: 18px 30px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.04);
+    backdrop-filter: blur(8px);
+    width: min(520px, calc(100% - 32px));
+    min-width: 0;
+    max-width: 100%;
+    max-height: 100%;                 /* contain to the experience height */
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  /* Revisit card — the SAME card as the loading card (same chrome, same
+     size), with just a centered label and the same blue progress bar pinned
+     to the bottom (matching the loading card's bar position). */
+  .loading-revisit {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    background: rgba(255,255,255,0.92);
+    border: 1px solid rgba(226,232,240,0.6);
+    border-radius: 16px;
+    padding: 18px 30px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.04);
+    backdrop-filter: blur(8px);
+    width: min(520px, calc(100% - 32px));
+    min-width: 0;
+    min-height: 270px;               /* match the loading card's height */
+    max-width: 100%;
+    max-height: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+  .revisit-text {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Quicksand', system-ui, sans-serif;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #475569;
+    letter-spacing: 0.02em;
+  }
+  .loading-svg svg { display: block; }
+  @keyframes draw-in {
+    0% { stroke-dashoffset: 140; }
+    50% { stroke-dashoffset: 0; }
+    100% { stroke-dashoffset: -140; }
+  }
+  .loading-code {
+    font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+    font-size: 0.72rem;
+    line-height: 2;
+    text-align: left;
+  }
+  .lc { opacity: 0; }
+  .kw { color: #7c3aed; }
+  .id { color: #2563eb; }
+  .op { color: #d97706; }
+  .p  { color: #64748b; }
+  .s  { color: #64748b; }
+  .str { color: #059669; }
+  .num { color: #d97706; }
+  .cm { color: #94a3b8; font-style: italic; }
+  .ok { color: #059669; font-weight: 600; }
+  .loading-progress { width: 240px; height: 3px; background: rgba(68,136,255,0.08); border-radius: 4px; overflow: hidden; }
+  .loading-bar { width: 0%; height: 100%; background: linear-gradient(90deg, #4488ff, #66bbff); border-radius: 4px; }
+
+  .product-experience {
+    position: absolute;
+    inset: 0;
+    z-index: 1;                       /* beneath the loading overlay */
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+  }
+  .product-experience.ready { opacity: 1; }
+  .product-experience { visibility: visible; }
+
+  /* ── Selector (experience options) ── */
+  .selector {
+    flex-shrink: 0;
+    display: none;
+    gap: 8px;
+    padding: 14px 0 6px;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    max-width: 700px;
+  }
+  .product-centered.entered .selector { display: flex; }
+
+  .sel {
+    padding: 7px 17px;
+    font-size: 0.74rem;
+    font-weight: 600;
+    color: #1e293b;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: inherit;
+    white-space: nowrap;
+    box-shadow: 0 1px 2px rgba(15,23,42,0.06);
+  }
+  .sel:hover {
+    border-color: #94a3b8;
+    box-shadow: 0 2px 8px rgba(15,23,42,0.08);
+  }
+  .sel:active { transform: scale(0.96); }
+
+  /* 1) Greyed out = unloaded / never seen yet */
+  .sel--new {
+    color: #a6adb8;
+    background: #f1f5f9;
+    border-color: #e5eaf0;
+    font-weight: 500;
+    box-shadow: none;
+    opacity: 0.7;
+  }
+  .sel--new:hover {
+    color: #7c8591;
+    border-color: #d4dae1;
+    background: #eaf0f6;
+    opacity: 0.9;
+  }
+
+  /* 2) Currently loading = pulsing with a soft accent ring */
+  .sel--loading {
+    color: #1e293b;
+    background: #ffffff;
+    border-color: #93c5fd;
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.14);
+    animation: selPulse 1s ease-in-out infinite;
+    cursor: default;
+  }
+  .sel--loading:hover, .sel--loading:active {
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.14);
+    transform: none;
+  }
+
+  /* 3) Selected / current = dark filled, no hover change */
+  .sel--on {
+    color: #fff;
+    background: #1e293b;
+    border-color: #1e293b;
+    font-weight: 700;
+    box-shadow: 0 2px 10px rgba(30,41,59,0.25);
+    cursor: default;
+  }
+  .sel--on:hover, .sel--on:active {
+    color: #fff;
+    background: #1e293b;
+    border-color: #1e293b;
+    box-shadow: 0 2px 10px rgba(30,41,59,0.25);
+    transform: none;
+  }
+
+  @keyframes selPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+  }
+
+  @media (max-width: 768px) {
+    .sel { font-size: 0.68rem; padding: 5px 13px; }
+  }
+
+  /* ── Hero / chat ── */
+  .product-hero {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 24px;
+    cursor: pointer;
+    width: 100%;
+    max-width: 620px;
+    transition: padding 0.65s ease;
+  }
+  .product-hero.entered { padding: 4px 0 10px 0; cursor: default; }
+  .product-hero-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    animation: dropIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  @keyframes dropIn {
+    0% { opacity: 0; transform: translateY(-60px) scale(0.92); }
+    60% { opacity: 1; transform: translateY(10px) scale(1.015); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .product-hint {
+    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: #94a3b8;
+    letter-spacing: 0.02em;
+    transition: opacity 0.4s ease;
+  }
+  .product-hero.entered .product-hint { opacity: 0; pointer-events: none; }
+
+  @media (max-width: 1024px) {
+    .product-stage.entered { padding: 0; }
+  }
+  @media (max-width: 768px) {
+    .sel { font-size: 0.64rem; }
+    .product-hero { padding: 0 12px; }
+    .product-hero-inner { gap: 10px; }
+    .loading-card { padding: 20px 24px; width: calc(100% - 24px); }
+    .loading-revisit { padding: 20px 24px; width: calc(100% - 24px); min-height: 260px; }
+    .loading-code { font-size: 0.65rem; }
+  }
+</style>

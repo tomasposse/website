@@ -1,0 +1,144 @@
+---
+const speed = 1;
+
+const items = [
+  { src: "/images/clients/nba2.webp", text: "NBA" },
+  { src: "/images/clients/tnt.webp", text: "TNT" },
+  { src: "/images/clients/nxs.webp", text: "NXS" },
+  { src: "/images/clients/coca2.webp", text: "Coca Cola" },
+  { src: "/images/clients/pyg.webp", text: "PYG" },
+  { src: "/images/clients/inc.webp", text: "Incucai" },
+  { src: "/images/clients/uni.webp", text: "Unilever" },
+  { src: "/images/clients/adi2.webp", text: "Adidas" },
+];
+---
+
+<div class="carousel">
+  <div class="viewport">
+    <div id="logo-track" class="track">
+      <div class="group">
+        {items.map((item) => (
+          <div class="logo-item">
+            <img src={item.src} alt={item.text} />
+            {/* <span>{item.text}</span> */}
+          </div>
+        ))}
+      </div>
+
+      <div class="group" aria-hidden="true">
+        {items.map((item) => (
+          <div class="logo-item">
+            <img src={item.src} alt="" />
+            
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+</div>
+<!-- <span>{item.text}</span> -->
+<script define:vars={{ speed }}>
+  const track = document.getElementById("logo-track");
+  const group = track.querySelector(".group");
+
+  let offset = 0;
+  let loopWidth = 0;
+
+  function updateWidth() {
+    loopWidth = group.getBoundingClientRect().width;
+  }
+
+  function animate() {
+    offset -= speed;
+
+    if (Math.abs(offset) >= loopWidth) {
+      offset = 0;
+    }
+
+    track.style.transform = `translate3d(${offset}px, 0, 0)`;
+    requestAnimationFrame(animate);
+  }
+
+  Promise.all(
+    [...group.querySelectorAll("img")].map((img) =>
+      img.complete
+        ? Promise.resolve()
+        : new Promise((resolve) => {
+            img.onload = resolve;
+          })
+    )
+  ).then(() => {
+    updateWidth();
+    animate();
+  });
+
+  window.addEventListener("resize", updateWidth);
+</script>
+
+<style>
+  .carousel {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    contain: layout;
+  }
+
+  .viewport {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent,
+      black 10%,
+      black 90%,
+      transparent
+    );
+
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      black 10%,
+      black 90%,
+      transparent
+    );
+  }
+
+  .track {
+    display: flex;
+    width: max-content;
+    will-change: transform;
+  }
+
+  .group {
+    display: flex;
+    flex-shrink: 0;
+    gap: 3rem;
+    padding-right: 3rem;
+  }
+
+  .logo-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .logo-item img {
+    height: 50px;
+    width: auto;
+    object-fit: contain;
+    display: block;
+    border-radius: 10px;
+  }
+
+  .logo-item span {
+    margin-top: 10px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+</style>
