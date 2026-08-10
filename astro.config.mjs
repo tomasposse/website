@@ -5,6 +5,6 @@ import { defineConfig } from 'astro/config';
 const isDev = import.meta.env.DEV;
 
 export default defineConfig({
-  site: isDev ? 'http://localhost:4321' : 'https://tomasposse.github.io/website',
-  base: isDev ? '/' : '/website',
+  site: isDev ? 'http://localhost:4321' : 'https://www.tokyyto.com',
+  base: '/',
 });
