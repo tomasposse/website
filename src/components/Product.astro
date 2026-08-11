@@ -81,6 +81,7 @@ import ExperiencesPanel from "./Product/ExperiencesPanel.astro";
   const C = document.getElementById('centered')!;
   const S = document.getElementById('stage')!;
   const H = document.getElementById('hero')!;
+  const SHELL = document.getElementById('shell')!;
   const SEL = document.getElementById('selector')!;
   const LD = document.getElementById('loading')!;
   const EX = document.getElementById('experience')!;
@@ -268,8 +269,8 @@ import ExperiencesPanel from "./Product/ExperiencesPanel.astro";
     H.classList.add('entered');
 
     const { count } = readMeta();
-    let idx = window.__getRandomExperience ? window.__getRandomExperience() : 0;
-    if (idx < 0 || idx >= count) idx = 0;
+    // Windward / Grass is deliberately the first experience, never random.
+    const idx = 0;
     if (experienceDev) {
       for (let i = 0; i < count; i++) { visited[i] = true; done[i] = true; }
       buildSelector(idx);
@@ -299,23 +300,24 @@ import ExperiencesPanel from "./Product/ExperiencesPanel.astro";
     go(idx);
   }
 
-  // First click anywhere starts the experience in normal presentation mode.
-  // Dev mode starts immediately so an experience is ready while editing.
+  // The initial gesture belongs to the UI, not the whole product. Once the
+  // first experience is open, the same UI is the only randomize/cycle zone.
+  // This prevents taps on the canvas, loading card, hint, or page background
+  // from unexpectedly starting another experience.
   if (experienceDev) {
     window.setTimeout(start, 0);
   } else {
-    P.addEventListener('click', () => { if (!started) start(); });
-    P.addEventListener('touchstart', (e) => {
+    SHELL.addEventListener('click', () => { if (!started) start(); });
+    SHELL.addEventListener('touchstart', (e) => {
       if (!started) { e.preventDefault(); start(); }
     }, { passive: false });
   }
 
-  // After start, clicking the chat ("make something") picks a random experience.
-  H.addEventListener('click', () => {
+  SHELL.addEventListener('click', () => {
     if (justStarted) { justStarted = false; return; }
     if (started) cycle();
   });
-  H.addEventListener('touchstart', (e) => {
+  SHELL.addEventListener('touchstart', (e) => {
     if (justStarted) { justStarted = false; return; }
     if (started) { e.preventDefault(); cycle(); }
   }, { passive: false });
@@ -331,6 +333,7 @@ import ExperiencesPanel from "./Product/ExperiencesPanel.astro";
     justify-content: center;
     background: linear-gradient(to bottom, #ADD8E6 -100%, #ecfeff 100%);
     font-family: 'Quicksand', system-ui, sans-serif;
+    color: var(--font-color);
 
     padding: 20px 10px;
     box-sizing: border-box;

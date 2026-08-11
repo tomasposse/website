@@ -38,7 +38,10 @@ export interface KineticParams {
 
 // ── small colour helpers ────────────────────────────────────────────────────
 function parseColor(color: string): [number, number, number] {
-  const c = (color || "").trim();
+  const resolved = color.trim().startsWith("var(")
+    ? token(color.trim().slice(4, -1).trim(), "#1e293b")
+    : color;
+  const c = (resolved || "").trim();
   if (!c || c.toLowerCase() === "transparent") return [0, 0, 0];
   // rgba(...) / rgb(...)
   const m = c.match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i);
@@ -106,6 +109,7 @@ export class KineticA {
   // The auto (stage-derived) glyph size, so an explicit px fontSize can be
   // compared against it to scale the ripple (prevents tiny letters shredding).
   private autoFs = 100;
+  private renderFontSize = 0;
 
   constructor(stage: HTMLDivElement, params: KineticParams) {
     this.stage = stage;
@@ -168,6 +172,12 @@ export class KineticA {
 
     const pw = Math.round(this.w * this.dpr);
     const ph = Math.round(this.h * this.dpr);
+    // Canvas width/height attributes are device-pixel dimensions, but its CSS
+    // size must remain the measured CSS-pixel dimensions. Without this, a DPR
+    // of 2 makes the canvas visibly twice as large and causes apparent margins
+    // and clipping.
+    this.canvas.style.width = `${this.w}px`;
+    this.canvas.style.height = `${this.h}px`;
     for (const c of [this.canvas, this.mask, this.warp]) {
       c.width = pw;
       c.height = ph;
@@ -182,14 +192,54 @@ export class KineticA {
   // ripple), instead of a fixed full-width banner. Calls resize() to re-render
   // at the new, snug dimensions.
   fitToText() {
-    const scale = 1 / (this.dpr || 1);
-    const w = (this.box.x1 - this.box.x0) * scale;
-    const h = (this.box.y1 - this.box.y0) * scale;
-    if (!w || !h) return;
-    const m = Math.ceil(this.p.offset * 2) + 20; // ripple + chroma margin
-    this.stage.style.width = `${Math.ceil(w + m)}px`;
-    this.stage.style.height = `${Math.ceil(h + m)}px`;
-    this.resize();
+    const requestedSize = this.p.fontSize > 0 ? this.p.fontSize : 120;
+    const displacementX = Math.ceil(
+      Math.abs(this.p.offset) * 1.1 + Math.abs(this.p.chroma) * 5
+    );
+    const displacementY = Math.ceil(Math.abs(this.p.offset) * 0.7);
+    const text = (this.p.text || "A").trim().slice(0, 80) || "A";
+    const family = (this.p.fontFamily || "").startsWith("var(")
+      ? token("--font-global", "Quicksand, system-ui, sans-serif")
+      : this.p.fontFamily || token("--font-global", "Quicksand, system-ui, sans-serif");
+    const measure = document.createElement("canvas").getContext("2d")!;
+    // Measure against the host's real containing width, just like Text.astro.
+    // The host itself must not be used as the available width because it is
+    // self-sized and would make the initial measurement circular.
+    const parentWidth = this.stage.parentElement?.clientWidth || Infinity;
+    const maxAvailableWidth = Number.isFinite(parentWidth)
+      ? parentWidth
+      : this.stage.getBoundingClientRect().width;
+
+    measure.textAlign = "left";
+    measure.font = `700 ${requestedSize}px ${family}, system-ui`;
+    const raw = measure.measureText(text);
+    const rawInkWidth = Math.max(1, raw.actualBoundingBoxLeft + raw.actualBoundingBoxRight);
+    const naturalWidth = rawInkWidth + displacementX * 2;
+    // Only constrain against a genuinely narrower parent. For fit-content
+    // parents, using the current parent width here creates a circular size
+    // calculation and makes the host expand on resize.
+    const constrainedWidth = maxAvailableWidth < naturalWidth
+      ? Math.max(1, maxAvailableWidth - displacementX * 2)
+      : rawInkWidth;
+    const availableInkWidth = Math.min(rawInkWidth, constrainedWidth);
+    const size = requestedSize * Math.min(1, availableInkWidth / rawInkWidth);
+    this.renderFontSize = size;
+
+    measure.font = `700 ${size}px ${family}, system-ui`;
+    const metrics = measure.measureText(text);
+    this.renderFontSize = size;
+    // Use the font advance width so bearings and the final glyph are included.
+    const inkWidth = Math.max(1, metrics.width);
+    const inkHeight = Math.max(1, metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent);
+    const width = Math.ceil(inkWidth + displacementX * 2);
+    const height = Math.ceil(inkHeight + displacementY * 2);
+
+    const changed = Math.abs(this.stage.clientWidth - width) > 1 || Math.abs(this.stage.clientHeight - height) > 1;
+    this.stage.style.width = `${width}px`;
+    this.stage.style.height = `${height}px`;
+    this.stage.style.margin = "0";
+    this.stage.style.maxWidth = "100%";
+    if (changed) this.resize();
   }
 
   // Draw the letter once as an opaque white shape on a TRANSPARENT background, so
@@ -201,37 +251,59 @@ export class KineticA {
     const H = mask.height;
     mctx.clearRect(0, 0, W, H);
 
-    const text = (this.p.text || "A").slice(0, 12);
+    const text = (this.p.text || "A").trim().slice(0, 80) || "A";
     const single = text.length === 1;
     // Prefer the explicitly-passed family; fall back to Quicksand (the project
     // face), then system. `--font-woodland` is not loaded in this project.
-    const fam = (this.p.fontFamily || "").trim() || token("--font-woodland", "").split(",")[0].trim() || "Quicksand";
-    const family = fam;
+    const requestedFamily = (this.p.fontFamily || "").trim();
+    const family = requestedFamily.startsWith("var(")
+      ? token("--font-global", "Quicksand, system-ui, sans-serif")
+      : requestedFamily || token("--font-global", "Quicksand, system-ui, sans-serif");
     // fontSize is the ACTUAL px size of the letter. When 0/auto, derive a
     // sensible size from the stage (single char fills ~86% of height).
-    const fs = this.p.fontSize && this.p.fontSize > 0 ? this.p.fontSize : 0;
-    this.autoFs = Math.round(H * (single ? 0.86 : 0.6));
-    let size = fs > 0 ? fs : this.autoFs;
+    const fs = this.renderFontSize || (this.p.fontSize && this.p.fontSize > 0 ? this.p.fontSize : 0);
+    this.autoFs = Math.round((H / this.dpr) * (single ? 0.86 : 0.6));
+    // Canvas dimensions are DPR-scaled, so convert the public CSS-pixel font
+    // size to canvas pixels before measuring/drawing.
+    let size = (fs > 0 ? fs : this.autoFs) * this.dpr;
     mctx.fillStyle = "#fff";
+    // Center the glyph in the actual canvas. The canvas width is based on the
+    // left/right ink bounds, so centering by the canvas midpoint avoids the
+    // advance-width/left-bearing offset that made the word look shifted.
     mctx.textAlign = "center";
-    mctx.textBaseline = "middle";
+    mctx.textBaseline = "alphabetic";
     const setFont = (s: number) =>
       (mctx.font = `700 ${s}px ${family}, system-ui`);
     setFont(size);
     if (size > 12) {
       // Always keep it from overflowing the stage.
-      const maxW = W * 0.94;
+      const paddingX = Math.ceil(
+        (Math.abs(this.p.offset) * 1.1 + Math.abs(this.p.chroma) * 5) * this.dpr
+      );
+      const paddingY = Math.ceil(Math.abs(this.p.offset) * 0.7 * this.dpr);
+      const maxW = Math.max(1, W - paddingX * 2);
+      const maxH = Math.max(1, H - paddingY * 2);
       let guard = 0;
-      while (mctx.measureText(text).width > maxW && size > 12 && guard++ < 40) {
-        size -= 4;
+      while (mctx.measureText(text).width > maxW && size > 12 * this.dpr && guard++ < 100) {
+        size -= Math.max(1, 2 * this.dpr);
         setFont(size);
       }
-      if (size > H * 0.94) {
-        size = Math.max(12, Math.round(H * 0.94));
+      if (size > maxH * 0.9) {
+        size = Math.max(12 * this.dpr, Math.round(maxH * 0.9));
         setFont(size);
       }
     }
-    mctx.fillText(text, W / 2, H * 0.54);
+    // Place the glyph by its actual ink bounds. This makes the canvas exactly
+    // ink bounds plus the deformation envelope—no arbitrary blank margin and
+    // no clipping caused by centering against the advance width.
+    const metrics = mctx.measureText(text);
+    const paddingX = Math.ceil(
+      (Math.abs(this.p.offset) * 1.1 + Math.abs(this.p.chroma) * 5) * this.dpr
+    );
+    const paddingY = Math.ceil(Math.abs(this.p.offset) * 0.7 * this.dpr);
+    const x = W / 2;
+    const y = paddingY + metrics.actualBoundingBoxAscent;
+    mctx.fillText(text, x, y);
     this.measureBox();
   }
 
@@ -322,12 +394,27 @@ export class KineticA {
           const waveX = Math.round(mix * off);
           const waveY = Math.round(Math.sin(t * 0.9 + phase * p.spread * 0.6) * off * 0.7);
 
-          const sx = x * tileW + waveX;
-          const sy = y * tileH + waveY;
           const dx = x * tileW;
           const dy = y * tileH;
           const dw = x === TILES_X - 1 ? W - dx : tileW;
           const dh = y === TILES_Y - 1 ? H - dy : tileH;
+          // Keep every source rectangle inside the mask. The displacement
+          // envelope is included in the host size, so edge tiles remain clean.
+          // A source clamp alone creates stretched edge tiles. Instead, clip
+          // each displaced source/destination pair to the valid canvas area.
+          const sourceX = x * tileW + waveX;
+          const sourceY = y * tileH + waveY;
+          const clipLeft = Math.max(0, -sourceX);
+          const clipTop = Math.max(0, -sourceY);
+          const clipRight = Math.max(0, sourceX + dw - W);
+          const clipBottom = Math.max(0, sourceY + dh - H);
+          const copyW = dw - clipLeft - clipRight;
+          const copyH = dh - clipTop - clipBottom;
+          if (copyW <= 0 || copyH <= 0) continue;
+          const sx = sourceX + clipLeft;
+          const sy = sourceY + clipTop;
+          const destX = dx + clipLeft;
+          const destY = dy + clipTop;
           if (dw <= 0 || dh <= 0) continue;
           if (sx + dw <= 0 || sy + dh <= 0 || sx >= W || sy >= H) continue;
 
@@ -335,7 +422,7 @@ export class KineticA {
           wctx.globalAlpha = p.shade > 0
             ? 1 - p.shade * 0.5 + Math.min(1, Math.abs(mix)) * p.shade * 0.5
             : 1;
-          wctx.drawImage(mask, sx, sy, dw, dh, dx, dy, dw, dh);
+          wctx.drawImage(mask, sx, sy, copyW, copyH, destX, destY, copyW, copyH);
         }
       }
       wctx.globalAlpha = 1;
@@ -439,6 +526,7 @@ export class KineticA {
 
   refreshLetter() {
     this.drawLetter();
+    this.fitToText();
     if (!this.running) this.renderStatic();
   }
 

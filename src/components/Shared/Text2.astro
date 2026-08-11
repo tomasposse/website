@@ -33,18 +33,18 @@ interface Props {
 
 const {
   text = "a",
-  paper = "rgba(0,0,0,0)",
-  ink = "rgba(255,255,255,1)",
-  accent = "rgba(124,77,255,1)",
-  tiles = 34,
-  offset = 26,
+  paper = "transparent",
+  ink = "var(--font-color)",
+  accent = "#3b82f6",
+  tiles = 25,
+  offset = 4,
   speed = 0.02,
-  spread = 0.025,
-  chroma = 0.35,
-  shade = 0.35,
-  grain = 0.7,
+  spread = 0.035,
+  chroma = 0.2,
+  shade = 0.2,
+  grain = 0.5,
   fontSize = 0,
-  fontFamily = "Quicksand",
+  fontFamily = "var(--font-global)",
   flush = false,
   class: className = "",
 } = Astro.props;
@@ -100,15 +100,15 @@ const transparentPaper =
       paper: host.getAttribute("data-paper") ?? "rgba(0,0,0,0)",
       ink: host.getAttribute("data-ink") ?? "rgba(0,0,0,1)",
       accent: host.getAttribute("data-accent") ?? "rgba(124,77,255,1)",
-      tiles: num("tiles", 34),
-      offset: num("offset", 26),
-      speed: num("speed", 0.02),
-      spread: num("spread", 0.025),
-      chroma: num("chroma", 0.35),
-      shade: num("shade", 0.35),
-      grain: num("grain", 0.7),
+      tiles: num("tiles", 30),
+      offset: num("offset", 7),
+      speed: num("speed", 0.012),
+      spread: num("spread", 0.035),
+      chroma: num("chroma", 0.08),
+      shade: num("shade", 0.14),
+      grain: num("grain", 0),
       fontSize: num("font-size", 0),
-      fontFamily: host.getAttribute("data-font-family") ?? "Quicksand",
+      fontFamily: host.getAttribute("data-font-family") ?? "var(--font-global)",
     });
     instances.push(engine);
 
@@ -120,7 +120,7 @@ const transparentPaper =
       document.fonts.ready.then(() => engine.refreshLetter());
     }
 
-    const ro = new ResizeObserver(() => engine.resize());
+    const ro = new ResizeObserver(() => engine.fitToText());
     ro.observe(host);
 
     if (reduce) {
@@ -155,8 +155,18 @@ const transparentPaper =
   /* Inline + auto-sized: engine.fitToText() sets the exact width/height. */
   .kinetic-host {
     position: relative;
-    display: inline-block;
-    overflow: hidden;
+    display: block;
+    width: max-content;
+    max-width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+    background: transparent;
+  }
+  .kinetic-host canvas {
+    display: block;
+    overflow: visible;
   }
   .kinetic-host--flush {
     border-bottom-left-radius: 0;

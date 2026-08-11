@@ -19,7 +19,7 @@
   @property --a { syntax: '<angle>'; inherits: true; initial-value: 0deg; }
 
   .shell {
-    width: 100%; max-width: 620px; margin: 0 auto; font-family: 'Quicksand', system-ui, sans-serif;
+    width: 100%; max-width: 620px; min-width: 0; margin: 0 auto; box-sizing: border-box; font-family: var(--font-global);
     position: relative; padding: 1px; border-radius: 14px; background: transparent;
   }
   .shell::before, .shell::after {
@@ -60,7 +60,7 @@
     box-shadow: 0 2px 16px rgba(0,0,0,0.04),0 1px 4px rgba(0,0,0,0.02);
   }
   .shell-top { flex: 0 0 auto; padding: 12px 14px 4px 14px; min-height: 16px; }
-  .shell-in { color: #1e293b; font-family: 'Quicksand',system-ui,sans-serif; font-size: .82rem; font-weight: 400; line-height: 1.5; min-height: 1.5em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: none; transition: opacity 0.3s ease; }
+  .shell-in { color: #1e293b; font-family: var(--font-global); font-size: .82rem; font-weight: 400; line-height: 1.5; min-height: 1.5em; width: 100%; box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: none; transition: opacity 0.3s ease; }
   .shell-in.cursor::after { content: '▍'; color: #818cf8; animation: blink 0.9s steps(1) infinite; margin-left: 1px; }
   @keyframes blink { 50% { opacity: 0; } }
   .shell-acts { flex: 0 0 auto; display: flex; align-items: center; gap: 1px; padding: 4px 14px 12px 14px; justify-content: flex-end; }
@@ -114,15 +114,24 @@
   const shellIn = document.getElementById('shellIn');
   const shell = document.getElementById('shell');
   const PROMPT = 'make something...';
+  let typeRun = 0;
+  let typeTimer: number | null = null;
+  let cursorTimer: number | null = null;
+  let clearTimer: number | null = null;
 
   // Fade the prompt out softly, then empty it (avoids an abrupt vanish).
   window.__clearPrompt = function() {
     if (!shellIn) return;
+    typeRun++;
+    if (typeTimer !== null) window.clearInterval(typeTimer);
+    if (cursorTimer !== null) window.clearTimeout(cursorTimer);
+    if (clearTimer !== null) window.clearTimeout(clearTimer);
     shellIn.style.transition = 'opacity 0.3s ease';
     shellIn.style.opacity = '0';
-    window.setTimeout(() => {
+    clearTimer = window.setTimeout(() => {
       shellIn.textContent = '';
       shellIn.classList.remove('cursor');
+      clearTimer = null;
     }, 300);
   };
 
@@ -133,18 +142,28 @@
   window.__typePrompt = function(text) {
     if (!shellIn) return;
     const target = text || PROMPT;
-    // keep it visible the whole time — only the characters animate, not the fade
+    // Cancel the previous writer. Without this, switching experiences while a
+    // prompt is still being typed leaves two intervals fighting over text.
+    const run = ++typeRun;
+    if (typeTimer !== null) window.clearInterval(typeTimer);
+    if (cursorTimer !== null) window.clearTimeout(cursorTimer);
+    if (clearTimer !== null) window.clearTimeout(clearTimer);
+    clearTimer = null;
     shellIn.style.transition = 'none';
     shellIn.style.opacity = '1';
     shellIn.classList.add('cursor');
     shellIn.textContent = '';
     let i = 0;
-    const timer = window.setInterval(() => {
+    typeTimer = window.setInterval(() => {
+      if (run !== typeRun) return;
       i++;
       shellIn.textContent = target.slice(0, i);
       if (i >= target.length) {
-        window.clearInterval(timer);
-        window.setTimeout(() => shellIn.classList.remove('cursor'), 700);
+        if (typeTimer !== null) window.clearInterval(typeTimer);
+        typeTimer = null;
+        cursorTimer = window.setTimeout(() => {
+          if (run === typeRun) shellIn.classList.remove('cursor');
+        }, 700);
       }
     }, 55);
   };

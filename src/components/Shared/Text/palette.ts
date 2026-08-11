@@ -3,15 +3,15 @@ export const WORDS = ["design", "is", "how", "it", "works"];
 export type Swatch = { bg: string; fg: string };
 
 export const SWATCHES: Swatch[] = [
-  { bg: "#0a0a0a", fg: "#ffffff" },
-  { bg: "#ff2e20", fg: "#0a0a0a" },
-  { bg: "#f0c2f7", fg: "#0a0a0a" },
-  { bg: "#22e58b", fg: "#0a0a0a" },
-  { bg: "#7c4dff", fg: "#ffffff" },
-  { bg: "#ffe14d", fg: "#0a0a0a" },
-  { bg: "#18b6ff", fg: "#0a0a0a" },
-  { bg: "#ff7a1a", fg: "#0a0a0a" },
-  { bg: "#ff4fa3", fg: "#0a0a0a" },
+  { bg: "var(--text-tile-black)", fg: "var(--text-tile-white)" },
+  { bg: "#ff2e20", fg: "var(--text-tile-black)" },
+  { bg: "#f0c2f7", fg: "var(--text-tile-black)" },
+  { bg: "#22e58b", fg: "var(--text-tile-black)" },
+  { bg: "#7c4dff", fg: "var(--text-tile-white)" },
+  { bg: "#ffe14d", fg: "var(--text-tile-black)" },
+  { bg: "#18b6ff", fg: "var(--text-tile-black)" },
+  { bg: "#ff7a1a", fg: "var(--text-tile-black)" },
+  { bg: "#ff4fa3", fg: "var(--text-tile-black)" },
 ];
 
 export function randomSwatch(exclude?: Swatch): Swatch {

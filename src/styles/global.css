@@ -1,15 +1,31 @@
 @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@300..700&display=swap');
 
+:root {
+    --font-global: "Quicksand", system-ui, sans-serif;
+    --font-color: #303845;
+
+    /* Text.astro tile colors. These are real palette colors, selected by
+       palette.ts rather than generated mathematically. */
+    --text-tile-black: #303845;
+    --text-tile-white: #bbc2c2;
+
+    --aug-work-image-radius: 10px;
+    --aug-client-image-radius: 10px;
+}
+
 html,
 body {
     height: 100%;
     margin: 0;
 
-    font-family: "Quicksand", sans-serif;
+    font-family: var(--font-global);
+    color: var(--font-color);
     font-optical-sizing: auto;
     font-weight: 700;
     font-style: normal;
     font-size: 16px;
+
+    background: #929599;
 }
 
 *,

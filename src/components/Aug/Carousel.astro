@@ -81,14 +81,17 @@ const items = [
     width: 100%;
     max-width: 100%;
     min-width: 0;
+    box-sizing: border-box;
     overflow: hidden;
-    contain: layout;
+    contain: layout paint;
   }
 
   .viewport {
     width: 100%;
     max-width: 100%;
     min-width: 0;
+    height: 50px;
+    box-sizing: border-box;
     overflow: hidden;
 
     -webkit-mask-image: linear-gradient(
@@ -111,14 +114,16 @@ const items = [
   .track {
     display: flex;
     width: max-content;
+    max-width: none;
     will-change: transform;
   }
 
   .group {
     display: flex;
     flex-shrink: 0;
-    gap: 3rem;
-    padding-right: 3rem;
+    gap: clamp(0.5rem, 10vw, 5rem);
+    padding-right: clamp(0.5rem, 10vw, 5rem);
+    box-sizing: border-box;
   }
 
   .logo-item {
@@ -129,11 +134,12 @@ const items = [
   }
 
   .logo-item img {
-    height: 50px;
+    height: clamp(28px, 8vw, 50px);
+    max-width: 100%;
     width: auto;
     object-fit: contain;
     display: block;
-    border-radius: 10px;
+    border-radius: var(--aug-client-image-radius);
   }
 
   .logo-item span {

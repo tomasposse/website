@@ -2,73 +2,171 @@
 import Carousel from "../components/Aug/Carousel.astro";
 import Work2 from "../components/Aug/Work2.astro";
 
+
+import Text from "../components/Shared/Text.astro";
+
+import Text2 from "../components/Shared/Text2.astro"
+
 ---
 
 <style>
     .total2 {
         width: 100%;
-        min-height: 100dvh;
-
-        padding: 40px 20px 200px 20px;
-
+        height: 100%;
+        padding: 40px 40px 200px 40px;
         display: flex;
-        justify-content: center;
-        align-items: center;
     }
-    .colss {
-        display: flex;
-        flex-direction: column;
-        gap: 0px;
-        max-width: 1000px;
+
+    .augmented-title-wrap {
+        width: fit-content;
+        max-width: 100%;
+        margin: 0 auto 20px;
         min-width: 0;
-        /* background-color: lightblue; */
+    }
+
+    .clients-layout {
+        width: min(100%, 800px);
+        max-width: 100%;
+        margin-inline: auto;
+        display: flex;
+        align-items: center;
+        gap: 40px;
+        flex-wrap: wrap;
+        min-width: 0;
+    }
+
+    .clients-carousel {
+        flex: 1 1 500px;
+        width: min(100%, 500px);
+        max-width: 100%;
+        min-width: 0;
+        min-height: 50px;
+        overflow: hidden;
+    }
+
+    .cck-image-wrapper {
+        /* In the two-column layout, fill the height left by the text below. */
+        flex: 1 1 0;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .cck-image {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        border-radius: var(--aug-work-image-radius);
+    }
+
+    .augmented-reveal {
+        opacity: 0;
+        transform: translateY(32px);
+        transition: opacity 700ms ease, transform 700ms cubic-bezier(.22, 1, .36, 1);
+    }
+
+    .augmented-reveal.is-visible {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .augmented-reveal {
+            opacity: 1;
+            transform: none;
+            transition: none;
+        }
+    }
+
+    /* Two 400px columns plus the grid gap need roughly 840px. Below that
+       width the grid is actually one column, so use the image's native 3:2
+       ratio (the source is 1080x720). */
+    @container augmented-grid (max-width: 840px) {
+        .cck-image-wrapper {
+            flex: 0 0 auto;
+            width: 100%;
+            height: auto;
+            aspect-ratio: 3 / 2;
+            min-height: 0;
+        }
     }
 </style>
 
+
+
+
+
 <div class="total2">
-    <div class="colss">
-        <p style="font-size: 2rem;">Augmented Reality</p>
+    <div style="display: flex; flex-direction: column; width: 100%;" >
 
-        <!-- <div style="margin: auto;">
-            <Color text="augmented reality" fontSize={30} />
-        </div> -->
 
-        <div style="margin-top: 20px;">
-            <div style="display: flex; gap: 20px; flex-wrap: wrap;" >
-                <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 30px;" >
-                    <!-- <Text words={["6", "billion", "impressions", "on", "Meta"]} fontSize={54} flyDuration={600} /> -->
-                    <div style="width: 100%; min-width: 300px; display: flex; justify-content: space-between;" >
+        <div class="augmented-title-wrap">
+            <Text2 text="Tokyyto Studio" fontSize={62} />
+        </div>
+    
+        <p class="augmented-reveal" style="font-size: 3rem; margin: 0 auto 20px auto;">Augmented Reality</p>
+
+        <div style="display: flex; flex-direction: column; gap: 120px">
+ <!-- gap: clamp(24px, 5vw, 80px); -->
+        
+
+            <div class="augmented-grid" style=" width: min(100%, 1000px); margin-inline: auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr));
+           
+            
+             gap: clamp(24px, 5vw, 80px);
+            align-items: stretch; container-type: inline-size; container-name: augmented-grid;">
+                <div class="augmented-reveal" style=" display: flex; flex-direction: column; min-width: 0; ">
+                    <div style=" height: 100px; display: flex; align-items: center; justify-content: center; min-width: 0;">
+                        <Text text="6 billion impressions on Meta" fontSize={50} colorVariation={1} />
+                    </div>
+
+                    <div style=" display: flex; align-items: center; gap: 10px; ">
                         <Work2 />
                     </div>
                 </div>
-
-            </div>
-        </div>
-        <div style="margin-top: 40px;">
-            <div style="display: flex; flex-direction: column; gap: 40px;">
-                <div style="margin: auto; width: 100%;">
-                    <div style="display: flex; width: 100%;">
-                        <div style="width: 300px;; display: flex; flex-direction: column; margin: auto; gap: 10px; padding: 20px 0; border-radius: 10px; box-shadow: rgba(0, 0, 0, 0.24) 0px 3px 8px; " >
-                            <p style="margin: auto;">Clients</p>
-                            <div style="width: 100%;">
-                                <Carousel />
-                            </div>
-                        </div>
+                <div class="augmented-reveal" style=" display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; gap: 20px">
+                    <div class="cck-image-wrapper">
+                        <img class="cck-image" src="./images/cck.webp" alt="" />
                     </div>
-                </div>
-            </div>
-        </div>
-        <div style="margin-top: 20px;">
-            <div style="display: flex;  gap: 40px; flex-direction: column;">
-                <img src="./images/cck.webp" alt="" class="img" style=" object-fit: cover; aspect-ratio: 1.5/1; height: 200px; border-radius: 10px; margin: auto;" />
-                <div style="display: flex; flex-direction: column; gap: 20px; margin: auto;" >
-                    <p style="font-size: 2rem; margin-bottom: 8px;"> Our Partnership with Meta </p>
+                    <p style="font-size: 2rem; margin: 8px 0;"> Our Partnership with Meta </p>
                     <div style="display: flex; gap: 20px;">
                         <img src="./images/meta.webp" alt="Company Logo" style="width: 100px; height: 100px;" />
                         <p style="font-size: 1rem; max-width: 400px;"> As an official Meta Partner Studio, we engineered augmented reality experiences across Instagram, Facebook, and Messenger until the platform shut down in January 2025 </p>
                     </div>
                 </div>
             </div>
+            
+            <div class="augmented-reveal clients-layout">
+                <p style="font-size: 2rem;">Clients:</p>
+                <div class="clients-carousel">
+                    <Carousel />
+                </div>
+            </div>
         </div>
+        
+
+
     </div>
 </div>
+
+<script>
+  const revealItems = document.querySelectorAll<HTMLElement>(".augmented-reveal");
+
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    revealItems.forEach((item) => item.classList.add("is-visible"));
+  } else {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("is-visible");
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.15 }
+    );
+
+    revealItems.forEach((item) => observer.observe(item));
+  }
+</script>

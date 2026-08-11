@@ -22,4 +22,7 @@ export const experiences: LoadedExperience[] = Object.entries(metadataModules)
       load: async () => (await loadRuntime()).createExperience,
     };
   })
-  .filter((item): item is LoadedExperience => item !== null);
+  .filter((item): item is LoadedExperience => item !== null)
+  // Windward is the permanent opening scene. Keep the manifest stable so the
+  // selector, preload queue, and first view all agree about position zero.
+  .sort((a, b) => (a.id === 'grass' ? -1 : b.id === 'grass' ? 1 : 0));

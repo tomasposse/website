@@ -2,6 +2,6 @@ import type { ExperienceDefinition } from '../experience-config';
 
 export const experience: ExperienceDefinition = {
   id: 'ascii',
-  title: 'Glyph Laboratory',
-  description: 'A compact interactive renderer with geometry, particles, glyph materials, and compositing controls.',
+  title: 'Four Bodies',
+  description: 'Four slime blobs with different physics and interactions.',
 };

@@ -1,8 +1,9 @@
 // Shared experience configuration and development controls.
-// Keep all experience-wide switches, runtime types, and Grass tuning here.
-
-export const EXPERIENCE_DEV = false;
-export const DEV = false;
+// `EXPERIENCE_DEV` is the single switch that turns on every experience's dev
+// UI (asan per-experience panel). Set it once to enable/disable all of them.
+export const EXPERIENCE_DEV = true;
+// Alias kept for older imports — one source of truth, both reflect the flag.
+export const DEV = EXPERIENCE_DEV;
 
 export type ExperienceRuntime = { destroy: () => void };
 export type ExperienceFactory = (host: HTMLElement) => ExperienceRuntime;

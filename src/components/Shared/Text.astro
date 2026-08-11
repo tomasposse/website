@@ -58,7 +58,17 @@ const {
 <style>
   .design-tiles-host {
     position: relative;
+    /* Keep the requested font size until the containing block is too small.
+       Text.astro scales itself down in that case (see engine.ts). */
+    display: flex;
+    justify-content: center;
     width: 100%;
-    height: clamp(2.4rem, 6vw, 4.2rem);
+    max-width: 100%;
+    min-width: 0;
+    height: auto;
+    overflow: visible;
+  }
+  .design-tiles-host > div {
+    max-width: 100%;
   }
 </style>

@@ -70,13 +70,14 @@ export class DesignTiles {
 
     const root = document.createElement("div");
     Object.assign(root.style, {
-      position: "absolute",
-      inset: "0",
+      position: "relative",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      fontFamily: "Quicksand, \"Trebuchet MS\", sans-serif",
+      fontFamily: "var(--font-global, Quicksand, \"Trebuchet MS\", sans-serif)",
       userSelect: "none",
+      width: "max-content",
+      height: `${BAND_ASCENT + BAND_DESCENT}px`,
     });
     root.setAttribute("aria-label", this.words.join(" "));
 
@@ -88,6 +89,7 @@ export class DesignTiles {
       display: "flex",
       alignItems: "stretch",
       lineHeight: "0",
+      width: "max-content",
     });
 
     this.words.forEach((word, i) => {
@@ -155,30 +157,46 @@ export class DesignTiles {
   }
 
   private layout() {
-    for (const tile of this.tiles) {
-      const m = measureWord(
-        tile.word,
-        this.fontFamily,
-        "500",
-        this.fontSize
-      );
+    const metrics = this.tiles.map((tile) => measureWord(tile.word, this.fontFamily, "500", this.fontSize));
+    const valid = metrics.filter((m): m is WordMetrics => !!m);
+    // Use one shared vertical band for every word. This preserves a common
+    // baseline/alignment while the band itself still fits the requested font.
+    const bandTop = valid.length ? Math.min(...valid.flatMap((m) => m.glyphs.map((g) => g.top))) - PAD_Y : 0;
+    const bandBottom = valid.length ? Math.max(...valid.flatMap((m) => m.glyphs.map((g) => g.bottom))) + PAD_Y : this.fontSize;
+    const height = Math.max(1, bandBottom - bandTop);
 
+    this.tiles.forEach((tile, i) => {
       for (const r of tile.rects) r.remove();
       tile.rects = [];
-      if (!m) {
-        this.buildFallback(tile);
-        continue;
-      }
-      this.buildRects(tile, m);
-    }
+      const m = metrics[i];
+      if (m) this.buildRects(tile, m, bandTop, bandBottom);
+      else this.buildFallback(tile, bandTop, height);
+    });
+    this.root.style.height = `${height}px`;
+    this.bar.style.height = `${height}px`;
+    this.fitToHost();
   }
 
-  private buildRects(tile: Tile, m: WordMetrics) {
-    const gBg = tile.svg.firstChild as SVGGElement;
+  /**
+   * Preserve the requested font size when there is room, but scale the whole
+   * word mark down when its containing block is narrower than the text.
+   * This is preferable to a component-level media query because each
+   * instance can have a different amount of available space.
+   */
+  private fitToHost() {
+    const availableWidth = this.host.clientWidth;
+    const contentWidth = this.bar.scrollWidth;
+    if (!availableWidth || !contentWidth) return;
 
-    const bandTop = BASELINE_Y - BAND_ASCENT;
-    const bandBottom = BASELINE_Y + BAND_DESCENT;
-    const bandH = bandBottom - bandTop;
+    const scale = Math.min(1, availableWidth / contentWidth);
+    this.root.style.transformOrigin = "center center";
+    this.root.style.transform = `scale(${scale})`;
+    this.root.style.height = `${this.bar.offsetHeight * scale}px`;
+  }
+
+  private buildRects(tile: Tile, m: WordMetrics, bandTop: number, bandBottom: number) {
+    const gBg = tile.svg.firstChild as SVGGElement;
+    const bandH = Math.max(1, bandBottom - bandTop);
 
     for (let i = 0; i < m.glyphs.length; i++) {
       const g = m.glyphs[i];
@@ -212,10 +230,14 @@ export class DesignTiles {
     tile.svg.setAttribute("viewBox", `${vbX} ${bandTop} ${vbW} ${bandH}`);
     tile.svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
     tile.svg.removeAttribute("width");
-    tile.svg.style.width = "auto";
+    // SVG viewBox units are based on the requested font size. Do not let the
+    // host's responsive height scale the SVG (that was making fontSize appear
+    // to be ignored). One viewBox unit is one CSS pixel here.
+    tile.svg.style.width = `${vbW}px`;
+    tile.svg.style.height = `${bandH}px`;
   }
 
-  private buildFallback(tile: Tile) {
+  private buildFallback(tile: Tile, bandTop = 0, bandH = this.fontSize) {
     const gBg = tile.svg.firstChild as SVGGElement;
     const rect = document.createElementNS(SVGNS, "rect");
     rect.setAttribute("x", "0");
@@ -225,16 +247,22 @@ export class DesignTiles {
     rect.style.fill = tile.swatch.bg;
     gBg.appendChild(rect);
     tile.rects.push(rect);
-    tile.svg.setAttribute("viewBox", "0 0 100 100");
+    tile.svg.setAttribute("viewBox", `0 ${bandTop} 100 ${bandH}`);
+    tile.svg.style.width = "100px";
+    tile.svg.style.height = `${bandH}px`;
   }
 
   private bindEvents() {
     this.tiles.forEach((tile) => {
       const onEnter = () => this.recolor(tile);
       tile.svg.addEventListener("pointerenter", onEnter);
-      this.cleanup.push(() =>
-        tile.svg.removeEventListener("pointerenter", onEnter)
-      );
+      // Mobile browsers do not reliably dispatch pointerenter for this kind
+      // of SVG content. Keep the same color-flow interaction on touch.
+      tile.svg.addEventListener("pointerdown", onEnter);
+      this.cleanup.push(() => {
+        tile.svg.removeEventListener("pointerenter", onEnter);
+        tile.svg.removeEventListener("pointerdown", onEnter);
+      });
     });
 
     this.ro = new ResizeObserver(() => this.layout());
