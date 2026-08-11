@@ -55,15 +55,20 @@
   .shell-face {
     position: relative; width: 100%; height: 100%; border-radius: 13px;
     background: rgba(255,255,255,0.95); backdrop-filter: blur(8px);
-    overflow: hidden; z-index: 1;
+    /* Keep the face clipped, but not the shell: the animated border/glow lives
+       outside .shell-face and must remain visible on narrow/mobile viewports. */
+    overflow: visible; z-index: 1;
     display: flex; flex-direction: column;
     box-shadow: 0 2px 16px rgba(0,0,0,0.04),0 1px 4px rgba(0,0,0,0.02);
   }
   .shell-top { flex: 0 0 auto; padding: 12px 14px 4px 14px; min-height: 16px; }
+  /* Clip only the prompt itself, rather than the whole face (which would clip
+     the pseudo-element glow on mobile Safari). */
+  .shell-top { overflow: hidden; border-radius: 13px 13px 0 0; }
   .shell-in { color: #1e293b; font-family: var(--font-global); font-size: .82rem; font-weight: 400; line-height: 1.5; min-height: 1.5em; width: 100%; box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: none; transition: opacity 0.3s ease; }
   .shell-in.cursor::after { content: '▍'; color: #818cf8; animation: blink 0.9s steps(1) infinite; margin-left: 1px; }
   @keyframes blink { 50% { opacity: 0; } }
-  .shell-acts { flex: 0 0 auto; display: flex; align-items: center; gap: 1px; padding: 4px 14px 12px 14px; justify-content: flex-end; }
+  .shell-acts { flex: 0 0 auto; display: flex; align-items: center; gap: 1px; padding: 4px 14px 12px 14px; justify-content: flex-end; border-radius: 0 0 13px 13px; }
   .shell-btn { width: 28px; height: 28px; border-radius: 8px; border: none; background: transparent; color: #94a3b8; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all .12s ease; flex-shrink: 0; }
   .shell-btn:hover { background: #e2e8f0; color: #475569; }
   .shell-btn:active { background: #cbd5e1; transform: scale(.88); }

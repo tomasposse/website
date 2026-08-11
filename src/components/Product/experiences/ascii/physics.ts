@@ -1,313 +1,295 @@
-import { BLOBS, BLOB_COUNT, DT, EDGE_PAD, SOLVER_PASSES, STARTS, RULES, ruleIndex } from './config';
-import type { Params } from './params';
-import type { Blob, Particle, World } from './types';
+import { ENTITIES, EDGE_MARGIN, SOLVER_PASSES, START_POSITIONS, STEP_SECONDS } from './config';
+import { createInteractionRules } from './interaction-rules';
+import { applyEntityInteractions } from './interactions';
+import type { SimulationParams } from './params';
+import type { Entity, Particle, Simulation } from './types';
 
-const TAU = Math.PI * 2;
-const EPS = 1e-6;
+const EPSILON = 1e-6;
+const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
-function noise(t: number, seed: number) {
-  return Math.sin(t * 1.17 + seed * 2.3) * 0.65 + Math.sin(t * 0.41 + seed * 5.1) * 0.35;
+function isDragged(sim: Simulation, id: number) {
+  for (const drag of sim.dragState.values()) if (drag.entityId === id) return true;
+  return false;
 }
 
-// Non-harmonic interaction field. There is deliberately no universal
-// attraction term: every mode either circulates, separates, exchanges motion,
-// or alternates. This prevents the four bodies from all collapsing together.
-function pairResponse(kind: string, a: number, b: number, nx: number, ny: number, fall: number, avx: number, avy: number, bvx: number, bvy: number, time: number) {
-  const tx = -ny, ty = nx;
-  const rvx = bvx - avx, rvy = bvy - avy;
-  const radialVelocity = rvx * nx + rvy * ny;
-  const tangentVelocity = rvx * tx + rvy * ty;
-  const phase = time * (1.7 + (a + b) * 0.31);
-
-  switch (kind) {
-    case 'orbit': {
-      // A bounded tangential stream plus a near-field pressure wall. It never
-      // has a long-range attractive component.
-      const wall = Math.max(0, 0.42 - fall) * 2.4;
-      return { x: (tx * 1.45 - nx * wall) * fall, y: (ty * 1.45 - ny * wall) * fall };
-    }
-    case 'barrier': {
-      // Inverse-distance pressure. Close particles are expelled; at range the
-      // force vanishes instead of turning into attraction.
-      const pressure = Math.min(2.8, 0.18 / Math.max(0.08, 1 - fall));
-      return { x: -nx * pressure * fall, y: -ny * pressure * fall };
-    }
-    case 'exchange': {
-      // Relative velocity is rotated and exchanged. This changes trajectories
-      // without reducing the separation between the bodies.
-      const exchange = Math.tanh(tangentVelocity * 0.018) * 1.8;
-      return { x: (tx * exchange - nx * radialVelocity * 0.01) * fall, y: (ty * exchange - ny * radialVelocity * 0.01) * fall };
-    }
-    case 'ripple': {
-      // Alternating radial shells: attraction and repulsion alternate by
-      // distance, so there is no single rest distance or harmonic basin.
-      const wave = Math.sin(phase + (1 - fall) * Math.PI * 5);
-      return { x: nx * wave * fall, y: ny * wave * fall };
-    }
-    case 'shear': {
-      // Tangential shear flips with the direction of relative motion and adds
-      // no radial pull, so the pair slides past instead of joining.
-      const shear = Math.tanh(tangentVelocity * 0.025) * 1.6;
-      return { x: tx * shear * fall, y: ty * shear * fall };
-    }
-    case 'wander':
-    default: {
-      // A rotating, time-dependent field with a small outward component. It
-      // continuously changes direction rather than settling at equilibrium.
-      const angle = phase + Math.sin(time * 0.8 + a) * 0.7;
-      const c = Math.cos(angle), s = Math.sin(angle);
-      return { x: (nx * c - ny * s) * fall, y: (nx * s + ny * c) * fall };
-    }
+function makePoints(count: number, radius: number) {
+  const spacing = radius * 2;
+  const rowHeight = spacing * Math.sqrt(3) * 0.5;
+  const limit = Math.ceil(Math.sqrt(count)) + 3;
+  const points: Array<{ x: number; y: number; d: number }> = [];
+  for (let row = -limit; row <= limit; row++) for (let column = -limit; column <= limit; column++) {
+    const x = (column + (Math.abs(row) % 2) * 0.5) * spacing;
+    const y = row * rowHeight;
+    points.push({ x, y, d: x * x + y * y });
   }
+  points.sort((a, b) => a.d - b.d);
+  const selected = points.slice(0, count);
+  const cx = selected.reduce((sum, point) => sum + point.x, 0) / selected.length;
+  const cy = selected.reduce((sum, point) => sum + point.y, 0) / selected.length;
+  return selected.map((point) => ({ x: point.x - cx, y: point.y - cy }));
 }
 
-function seedBlob(index: number, width: number, height: number, params: Params): Blob {
-  const def = BLOBS[index];
-  const cx = width * STARTS[index].x;
-  const cy = height * STARTS[index].y;
-  const particles: Particle[] = [];
-  const count = Math.max(24, Math.round(params.count));
-  const golden = Math.PI * (3 - Math.sqrt(5));
-  const phases = Array.from({ length: 4 }, (_, i) => Math.sin(index * 17.3 + i * 9.7) * TAU);
-
-  for (let i = 0; i < count; i++) {
-    const angle = i * golden + phases[0];
-    const radius = 31 * Math.sqrt((i + 0.5) / count);
-    const shape = 1 + 0.16 * Math.sin(angle * 3 + phases[1]) + 0.09 * Math.sin(angle * 7 + phases[2]);
-    const hx = Math.cos(angle) * radius * shape;
-    const hy = Math.sin(angle) * radius * shape;
-    particles.push({ x: cx + hx, y: cy + hy, vx: 0, vy: 0, ax: 0, ay: 0, hx, hy });
-  }
-  return { def: index, color: def.color, particles, cx, cy, vx: 0, vy: 0, ax: 0, ay: 0 };
+function createEntity(id: number, width: number, height: number, params: SimulationParams): Entity {
+  const start = START_POSITIONS[id % START_POSITIONS.length];
+  const x = width * start.x;
+  const y = height * start.y;
+  const points = makePoints(Math.max(1, Math.round(params.entitiesCount)), params.dotRadius);
+  const particles: Particle[] = points.map((point) => ({
+    x: x + point.x,
+    y: y + point.y,
+    vx: 0,
+    vy: 0,
+    ax: 0,
+    ay: 0,
+    homeX: point.x,
+    homeY: point.y,
+  }));
+  return { id, color: ENTITIES[id].color, particles, x, y, vx: 0, vy: 0, ax: 0, ay: 0 };
 }
 
-export function createWorld(width: number, height: number, params: Params): World {
+export function createSimulation(width: number, height: number, params: SimulationParams): Simulation {
   return {
     width,
     height,
     time: 0,
-    blobs: Array.from({ length: BLOB_COUNT }, (_, i) => seedBlob(i, width, height, params)),
-    pointers: new Map(),
+    entities: ENTITIES.map((_, id) => createEntity(id, width, height, params)),
+    dragState: new Map(),
+    interactionRules: createInteractionRules(),
   };
 }
 
-export function resizeWorld(world: World, width: number, height: number) {
-  const sx = width / Math.max(1, world.width);
-  const sy = height / Math.max(1, world.height);
-  world.width = width;
-  world.height = height;
-  for (const blob of world.blobs) {
-    blob.cx *= sx; blob.cy *= sy;
-    for (const p of blob.particles) {
-      p.x *= sx; p.y *= sy; p.hx *= sx; p.hy *= sy;
+export function resizeSimulation(sim: Simulation, width: number, height: number) {
+  const sx = width / Math.max(1, sim.width);
+  const sy = height / Math.max(1, sim.height);
+  for (const entity of sim.entities) {
+    entity.x *= sx;
+    entity.y *= sy;
+    for (const particle of entity.particles) {
+      particle.x *= sx;
+      particle.y *= sy;
+      particle.homeX *= sx;
+      particle.homeY *= sy;
     }
+  }
+  sim.width = width;
+  sim.height = height;
+}
+
+export function rescaleParticles(sim: Simulation, previousRadius: number, nextRadius: number) {
+  const scale = nextRadius / Math.max(EPSILON, previousRadius);
+  for (const entity of sim.entities) for (const particle of entity.particles) {
+    particle.homeX *= scale;
+    particle.homeY *= scale;
+    particle.x = entity.x + (particle.x - entity.x) * scale;
+    particle.y = entity.y + (particle.y - entity.y) * scale;
   }
 }
 
-// Physics order:
-// 1. clear and accumulate accelerations from the current state
-// 2. integrate velocity and position
-// 3. solve particle contact constraints
-// 4. resolve world boundaries
-// The force model is a damped second-order system. Pair interactions are
-// phase-rotated separation vectors: each pair has a distinct phase, while all
-// bodies remain mechanically identical.
-export function advance(world: World, params: Params) {
-  world.time += DT;
-  accumulate(world, params);
-  moveDragged(world);
-  integrate(world, params);
-  for (let pass = 0; pass < SOLVER_PASSES; pass++) solveContacts(world, params);
-  resolveBounds(world, params);
+export function stepSimulation(sim: Simulation, params: SimulationParams) {
+  reset(sim);
+  applyWorld(sim, params);
+  applyEntityInteractions(sim);
+  applyParticleForces(sim, params);
+  applyCohesion(sim, params);
+  integrate(sim, params);
+  applyDrag(sim);
+  for (let pass = 0; pass < SOLVER_PASSES; pass++) solveContacts(sim, params);
+  constrain(sim, params);
+  sim.time += STEP_SECONDS;
 }
 
-function accumulate(world: World, params: Params) {
-  const centerX = world.width * 0.5;
-  const centerY = world.height * 0.5;
+function reset(sim: Simulation) {
+  for (const entity of sim.entities) {
+    entity.ax = entity.ay = 0;
+    for (const particle of entity.particles) particle.ax = particle.ay = 0;
+  }
+}
 
-  for (const blob of world.blobs) {
-    blob.ax = 0;
-    blob.ay = 0;
-    if (isGrabbed(world, blob.def)) continue;
-
-    blob.ay += params.gravity;
-    blob.ax += (centerX - blob.cx) * params.pull;
-    blob.ay += (centerY - blob.cy) * params.pull;
-    blob.ax += -(centerY - blob.cy) * params.spin;
-    blob.ay += (centerX - blob.cx) * params.spin;
-    blob.ax += noise(world.time, blob.def) * params.drift;
-    blob.ay += noise(world.time + 8, blob.def + 11) * params.drift;
-
-    for (let otherIndex = 0; otherIndex < BLOB_COUNT; otherIndex++) {
-      if (otherIndex === blob.def) continue;
-      const other = world.blobs[otherIndex];
-      const dx = other.cx - blob.cx;
-      const dy = other.cy - blob.cy;
-      const distance = Math.hypot(dx, dy);
-      if (distance < EPS) continue;
-      const nx = dx / distance;
-      const ny = dy / distance;
-      // Every pair remains active; horizon attenuates instead of hard-cutting.
-      const falloff = 1 / (1 + distance / Math.max(1, params.horizon));
-      const rule = RULES[ruleIndex(blob.def, otherIndex)];
-      const response = pairResponse(rule.kind, blob.def, otherIndex, nx, ny, falloff, blob.vx, blob.vy, other.vx, other.vy, world.time);
-      blob.ax += response.x * params.coupling;
-      blob.ay += response.y * params.coupling;
-      // A universal contact pressure prevents any special relationship from
-      // collapsing two bodies into the same centre. The relationship-specific
-      // response still controls what happens outside this contact shell.
-      const contact = Math.max(0, 1 - distance / 90);
-      if (contact > 0) {
-        const pressure = contact * contact * params.coupling * 1.8;
-        blob.ax -= nx * pressure;
-        blob.ay -= ny * pressure;
+function applyWorld(sim: Simulation, params: SimulationParams) {
+  const cx = sim.width * 0.5;
+  const cy = sim.height * 0.5;
+  for (const entity of sim.entities) {
+    if (isDragged(sim, entity.id)) continue;
+    entity.ay += params.gravity;
+    const dx = cx - entity.x;
+    const dy = cy - entity.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance <= EPSILON) continue;
+    const nx = dx / distance;
+    const ny = dy / distance;
+    const tx = -ny;
+    const ty = nx;
+    const radial = distance * params.centerPull - (entity.vx * nx + entity.vy * ny) * 2;
+    entity.ax += nx * radial;
+    entity.ay += ny * radial;
+    if (params.centerSpin !== 0) {
+      const tangentialVelocity = entity.vx * tx + entity.vy * ty;
+      const desiredTangentialVelocity = params.centerSpin * Math.min(distance, 240);
+      const tangentialAcceleration = (desiredTangentialVelocity - tangentialVelocity) * 4;
+      entity.ax += tx * tangentialAcceleration;
+      entity.ay += ty * tangentialAcceleration;
+    }
+    if (params.noise) {
+      const fieldX = Math.sin(sim.time * 1.13 + entity.x * 0.008 + entity.y * 0.003);
+      const fieldY = Math.cos(sim.time * 0.79 + entity.x * 0.004 - entity.y * 0.007);
+      entity.ax += fieldX * params.noise * 8;
+      entity.ay += fieldY * params.noise * 8;
+    }
+    if (params.particleNoise) {
+      for (const particle of entity.particles) {
+        const phase = particle.homeX * 0.17 + particle.homeY * 0.23 + entity.id * 3.1;
+        particle.ax += Math.sin(sim.time * 2.7 + phase) * params.particleNoise;
+        particle.ay += Math.cos(sim.time * 2.1 + phase * 1.31) * params.particleNoise;
       }
     }
   }
+}
 
-  for (const blob of world.blobs) {
-    for (const particle of blob.particles) {
-      const homeX = blob.cx + particle.hx;
-      const homeY = blob.cy + particle.hy;
-      const dx = homeX - particle.x;
-      const dy = homeY - particle.y;
-      const distance = Math.hypot(dx, dy);
-      const softness = Math.min(1, distance / Math.max(1, params.yield));
-      const spring = params.tether * (1 - 0.9 * softness);
-      particle.ax = dx * spring;
-      particle.ay = dy * spring;
-    }
-  }
-
-  if (params.halo <= 0 || params.mingle <= 0) return;
-  const radius2 = params.halo * params.halo;
-  for (let a = 0; a < BLOB_COUNT; a++) for (let b = a + 1; b < BLOB_COUNT; b++) {
-    const kind = RULES[ruleIndex(a, b)].kind;
-    const first = world.blobs[a].particles;
-    const second = world.blobs[b].particles;
-    for (const p of first) for (const q of second) {
-      const dx = q.x - p.x;
-      const dy = q.y - p.y;
-      const d2 = dx * dx + dy * dy;
-      if (d2 <= EPS || d2 >= radius2) continue;
-      const d = Math.sqrt(d2);
-      const falloff = 1 / (1 + d / Math.max(1, params.halo));
-      const nx = dx / d;
-      const ny = dy / d;
-      const response = pairResponse(kind, a, b, nx, ny, falloff, p.vx, p.vy, q.vx, q.vy, world.time);
-      const fx = response.x * params.mingle;
-      const fy = response.y * params.mingle;
-      p.ax += fx; p.ay += fy;
-      q.ax -= fx; q.ay -= fy;
+function applyParticleForces(sim: Simulation, params: SimulationParams) {
+  const diameter = params.dotRadius * 2;
+  for (let a = 0; a < sim.entities.length; a++) for (let b = a; b < sim.entities.length; b++) {
+    const same = a === b;
+    const first = sim.entities[a];
+    const second = sim.entities[b];
+    const strength = same ? params.particleCollision : params.entityCollision;
+    for (let i = 0; i < first.particles.length; i++) {
+      const start = same ? i + 1 : 0;
+      for (let j = start; j < second.particles.length; j++) {
+        const p = first.particles[i];
+        const q = second.particles[j];
+        const dx = q.x - p.x;
+        const dy = q.y - p.y;
+        const distance = Math.hypot(dx, dy);
+        if (distance <= EPSILON || distance >= diameter) continue;
+        const nx = dx / distance;
+        const ny = dy / distance;
+        const relative = (q.vx - p.vx) * nx + (q.vy - p.vy) * ny;
+        const force = (diameter - distance) * strength;
+        p.ax -= nx * force; p.ay -= ny * force;
+        q.ax += nx * force; q.ay += ny * force;
+      }
     }
   }
 }
 
-function moveDragged(world: World) {
-  for (const pointer of world.pointers.values()) {
-    const blob = world.blobs[pointer.blob];
-    const targetX = pointer.x - pointer.ox;
-    const targetY = pointer.y - pointer.oy;
-    const dx = targetX - blob.cx;
-    const dy = targetY - blob.cy;
-    blob.cx += dx; blob.cy += dy;
-    blob.vx = 0; blob.vy = 0; blob.ax = 0; blob.ay = 0;
-    for (const p of blob.particles) {
-      p.x += dx; p.y += dy;
-      p.vx = 0; p.vy = 0; p.ax = 0; p.ay = 0;
+function applyCohesion(sim: Simulation, params: SimulationParams) {
+  if (params.cohesion <= 0) return;
+  const decay = 1;
+  for (const entity of sim.entities) {
+    for (const particle of entity.particles) {
+      const dx = entity.x + particle.homeX - particle.x;
+      const dy = entity.y + particle.homeY - particle.y;
+      particle.ax += dx * params.cohesion;
+      particle.ay += dy * params.cohesion;
+      particle.vx *= decay;
+      particle.vy *= decay;
     }
   }
 }
 
-function integrate(world: World, params: Params) {
-  const damping = Math.max(0, 1 - params.drag * DT);
-  for (const blob of world.blobs) {
-    if (isGrabbed(world, blob.def)) continue;
-    blob.vx += blob.ax * DT;
-    blob.vy += blob.ay * DT;
-    blob.ax = 0; blob.ay = 0;
-    limit(blob, params.cap);
-    const moveX = blob.vx;
-    const moveY = blob.vy;
-    blob.cx += moveX * DT;
-    blob.cy += moveY * DT;
-    blob.vx *= damping; blob.vy *= damping;
-
-    for (const p of blob.particles) {
-      p.vx += p.ax * DT;
-      p.vy += p.ay * DT;
-      p.ax = 0; p.ay = 0;
-      limit(p, params.cap);
-      p.x += (moveX + p.vx) * DT;
-      p.y += (moveY + p.vy) * DT;
-      p.vx *= damping; p.vy *= damping;
+function integrate(sim: Simulation, params: SimulationParams) {
+  const decay = Math.exp(-params.damping * STEP_SECONDS);
+  for (const entity of sim.entities) {
+    const dragged = isDragged(sim, entity.id);
+    const oldX = entity.x;
+    const oldY = entity.y;
+    if (!dragged) {
+      entity.vx += entity.ax * STEP_SECONDS;
+      entity.vy += entity.ay * STEP_SECONDS;
+      limit(entity, params.maxSpeed);
+      entity.x += entity.vx * STEP_SECONDS;
+      entity.y += entity.vy * STEP_SECONDS;
+      entity.vx *= decay;
+      entity.vy *= decay;
+    }
+    const bodyDx = entity.x - oldX;
+    const bodyDy = entity.y - oldY;
+    for (const particle of entity.particles) {
+      if (!dragged) { particle.x += bodyDx; particle.y += bodyDy; }
+      particle.vx += particle.ax * STEP_SECONDS;
+      particle.vy += particle.ay * STEP_SECONDS;
+      limit(particle, params.maxSpeed);
+      particle.x += particle.vx * STEP_SECONDS;
+      particle.y += particle.vy * STEP_SECONDS;
+      particle.vx *= decay;
+      particle.vy *= decay;
     }
   }
 }
 
-function limit(body: { vx: number; vy: number }, cap: number) {
-  const speed2 = body.vx * body.vx + body.vy * body.vy;
-  if (speed2 <= cap * cap) return;
-  const scale = cap / Math.sqrt(speed2);
-  body.vx *= scale;
-  body.vy *= scale;
+function applyDrag(sim: Simulation) {
+  for (const drag of sim.dragState.values()) {
+    const entity = sim.entities[drag.entityId];
+    const dx = drag.x - drag.offsetX - entity.x;
+    const dy = drag.y - drag.offsetY - entity.y;
+    entity.x += dx;
+    entity.y += dy;
+    entity.vx = drag.velocityX;
+    entity.vy = drag.velocityY;
+    for (const particle of entity.particles) { particle.x += dx; particle.y += dy; }
+  }
 }
 
-function solveContacts(world: World, params: Params) {
-  const minDistance = params.clearance;
-  const minDistance2 = minDistance * minDistance;
-  const strength = params.pack * 0.5;
-  const resolve = (p: Particle, q: Particle) => {
-    const dx = q.x - p.x;
-    const dy = q.y - p.y;
-    const d2 = dx * dx + dy * dy;
-    if (d2 >= minDistance2 || d2 <= EPS) return;
-    const d = Math.sqrt(d2);
-    const amount = ((minDistance - d) / d) * strength;
-    const moveX = dx * amount;
-    const moveY = dy * amount;
-    p.x -= moveX; p.y -= moveY;
-    q.x += moveX; q.y += moveY;
-  };
-  for (const blob of world.blobs) {
-    for (let i = 0; i < blob.particles.length; i++) {
-      for (let j = i + 1; j < blob.particles.length; j++) resolve(blob.particles[i], blob.particles[j]);
+function solveContacts(sim: Simulation, params: SimulationParams) {
+  const diameter = params.dotRadius * 2;
+  for (let pass = 0; pass < SOLVER_PASSES; pass++) {
+    for (let a = 0; a < sim.entities.length; a++) for (let b = a; b < sim.entities.length; b++) {
+      const same = a === b;
+      const first = sim.entities[a];
+      const second = sim.entities[b];
+      if ((same && params.particleCollision <= 0) || (!same && params.entityCollision <= 0)) continue;
+      for (let i = 0; i < first.particles.length; i++) {
+        const start = same ? i + 1 : 0;
+        for (let j = start; j < second.particles.length; j++) {
+          const p = first.particles[i];
+          const q = second.particles[j];
+          const dx = q.x - p.x;
+          const dy = q.y - p.y;
+          const distance = Math.hypot(dx, dy);
+          if (distance >= diameter) continue;
+          const angle = (i * 0.73 + j * 1.17) % (Math.PI * 2);
+          const nx = distance > EPSILON ? dx / distance : Math.cos(angle);
+          const ny = distance > EPSILON ? dy / distance : Math.sin(angle);
+          const correction = diameter - distance;
+          const firstLocked = isDragged(sim, first.id);
+          const secondLocked = isDragged(sim, second.id);
+          if (!firstLocked && !secondLocked) {
+            p.x -= nx * correction * 0.5; p.y -= ny * correction * 0.5;
+            q.x += nx * correction * 0.5; q.y += ny * correction * 0.5;
+          } else if (!firstLocked) {
+            p.x -= nx * correction; p.y -= ny * correction;
+          } else if (!secondLocked) {
+            q.x += nx * correction; q.y += ny * correction;
+          }
+        }
+      }
     }
   }
-  for (let a = 0; a < BLOB_COUNT; a++) for (let b = a + 1; b < BLOB_COUNT; b++) {
-    for (const p of world.blobs[a].particles) for (const q of world.blobs[b].particles) resolve(p, q);
+}
+
+function constrain(sim: Simulation, params: SimulationParams) {
+  const padding = params.dotRadius + EDGE_MARGIN;
+  for (const entity of sim.entities) for (const particle of entity.particles) {
+    if (particle.x < padding) { particle.x = padding; particle.vx = Math.abs(particle.vx) * 0.35; }
+    else if (particle.x > sim.width - padding) { particle.x = sim.width - padding; particle.vx = -Math.abs(particle.vx) * 0.35; }
+    if (particle.y < padding) { particle.y = padding; particle.vy = Math.abs(particle.vy) * 0.35; }
+    else if (particle.y > sim.height - padding) { particle.y = sim.height - padding; particle.vy = -Math.abs(particle.vy) * 0.35; }
   }
 }
 
-function resolveBounds(world: World, params: Params) {
-  const particlePad = params.dot + EDGE_PAD;
-  for (const blob of world.blobs) {
-    if (blob.cx < EDGE_PAD) { blob.cx = EDGE_PAD; if (blob.vx < 0) blob.vx = -blob.vx; }
-    if (blob.cx > world.width - EDGE_PAD) { blob.cx = world.width - EDGE_PAD; if (blob.vx > 0) blob.vx = -blob.vx; }
-    if (blob.cy < EDGE_PAD) { blob.cy = EDGE_PAD; if (blob.vy < 0) blob.vy = -blob.vy; }
-    if (blob.cy > world.height - EDGE_PAD) { blob.cy = world.height - EDGE_PAD; if (blob.vy > 0) blob.vy = -blob.vy; }
-    for (const p of blob.particles) {
-      p.x = Math.max(particlePad, Math.min(world.width - particlePad, p.x));
-      p.y = Math.max(particlePad, Math.min(world.height - particlePad, p.y));
-    }
+function limit(body: { vx: number; vy: number }, maxSpeed: number) {
+  const speed = Math.hypot(body.vx, body.vy);
+  if (speed > maxSpeed && speed > EPSILON) { body.vx *= maxSpeed / speed; body.vy *= maxSpeed / speed; }
+}
+
+export function hitTest(sim: Simulation, x: number, y: number, params: SimulationParams) {
+  let selected = -1;
+  let nearest = Infinity;
+  for (const entity of sim.entities) for (const particle of entity.particles) {
+    const distance = Math.hypot(particle.x - x, particle.y - y);
+    if (distance <= params.dotRadius + 18 && distance < nearest) { selected = entity.id; nearest = distance; }
   }
+  return selected;
 }
 
-function isGrabbed(world: World, blobIndex: number) {
-  for (const pointer of world.pointers.values()) if (pointer.blob === blobIndex) return true;
-  return false;
-}
-
-export function hitTest(world: World, x: number, y: number) {
-  let best = -1;
-  let distance = Infinity;
-  for (let i = 0; i < BLOB_COUNT; i++) {
-    const d = Math.hypot(world.blobs[i].cx - x, world.blobs[i].cy - y);
-    if (d < 46 && d < distance) { distance = d; best = i; }
-  }
-  return best;
-}
-
-export function release(world: World, pointerId: number) {
-  world.pointers.delete(pointerId);
-}
+export function releaseDrag(sim: Simulation, pointerId: number) { sim.dragState.delete(pointerId); }

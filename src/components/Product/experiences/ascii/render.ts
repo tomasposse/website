@@ -1,114 +1,105 @@
-import { BACKGROUND, BLOBS } from './config';
-import type { Params } from './params';
-import type { World } from './types';
+import { BACKGROUND, ENTITIES } from './config';
+import type { Simulation } from './types';
+import type { SimulationParams } from './params';
 
-export type RenderOptions = { ascii: boolean; tiles: number };
+export type RenderOptions = { ascii: boolean; tileSize: number; tileMode: boolean };
 
-type Sample = { x: number; y: number; body: number };
+let sampleCanvas: HTMLCanvasElement | null = null;
+let sampleContext: CanvasRenderingContext2D | null = null;
 
-export function draw(ctx: CanvasRenderingContext2D, world: World, params: Params, opts: RenderOptions) {
-  ctx.clearRect(0, 0, world.width, world.height);
+export function render(ctx: CanvasRenderingContext2D, sim: Simulation, params: SimulationParams, options: RenderOptions) {
+  ctx.clearRect(0, 0, sim.width, sim.height);
   ctx.fillStyle = BACKGROUND;
-  ctx.fillRect(0, 0, world.width, world.height);
-  if (opts.ascii) drawAscii(ctx, world, opts.tiles);
-  else drawSolid(ctx, world, params);
+  ctx.fillRect(0, 0, sim.width, sim.height);
+  if (options.ascii && options.tileMode) renderAsciiImage(ctx, sim, options.tileSize, params);
+  else renderDots(ctx, sim, params);
 }
 
-function drawSolid(ctx: CanvasRenderingContext2D, world: World, params: Params) {
-  const radius = Math.max(0.5, params.dot);
-  for (const blob of world.blobs) {
+function renderDots(ctx: CanvasRenderingContext2D, sim: Simulation, params: SimulationParams) {
+  for (const entity of sim.entities) {
+    ctx.fillStyle = entity.color;
     ctx.beginPath();
-    for (const p of blob.particles) {
-      ctx.moveTo(p.x + radius, p.y);
-      ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+    for (const particle of entity.particles) {
+      ctx.moveTo(particle.x + params.dotRadius, particle.y);
+      ctx.arc(particle.x, particle.y, params.dotRadius, 0, Math.PI * 2);
     }
-    ctx.fillStyle = blob.color;
     ctx.fill();
   }
 }
 
-// ASCII is a material renderer, not a nearest-particle dump:
-// - each body owns a glyph vocabulary
-// - density picks the glyph within that vocabulary
-// - a finite-difference density normal provides fake light/shading
-// - the light angle makes highlights and shadow edges readable
-function drawAscii(ctx: CanvasRenderingContext2D, world: World, tiles: number) {
-  const cell = Math.max(5, world.width / Math.max(1, tiles));
-  const cols = Math.ceil(world.width / cell);
-  const rows = Math.ceil(world.height / cell);
-  const buckets = new Map<number, Sample[]>();
-  const key = (x: number, y: number) => y * cols + x;
+function renderAsciiImage(ctx: CanvasRenderingContext2D, sim: Simulation, tileSize: number, params: SimulationParams) {
+  const size = Math.max(1, Math.floor(tileSize));
+  const columns = Math.ceil(sim.width / size);
+  const rows = Math.ceil(sim.height / size);
+  const sample = ensureSampleBuffer(columns, rows);
+  sample.clearRect(0, 0, columns, rows);
+  sample.fillStyle = BACKGROUND;
+  sample.fillRect(0, 0, columns, rows);
 
-  for (let body = 0; body < world.blobs.length; body++) {
-    for (const p of world.blobs[body].particles) {
-      const x = Math.max(0, Math.min(cols - 1, Math.floor(p.x / cell)));
-      const y = Math.max(0, Math.min(rows - 1, Math.floor(p.y / cell)));
-      const k = key(x, y);
-      const list = buckets.get(k);
-      if (list) list.push({ x: p.x, y: p.y, body });
-      else buckets.set(k, [{ x: p.x, y: p.y, body }]);
+  // Paint each entity into its own ID buffer. A color pixel is never used to
+  // infer ownership after blending: the entity index is preserved per sample.
+  const owners = new Int16Array(columns * rows);
+  owners.fill(-1);
+  const coverage = new Uint16Array(columns * rows);
+
+  for (let entityIndex = 0; entityIndex < sim.entities.length; entityIndex++) {
+    const entity = sim.entities[entityIndex];
+    for (const particle of entity.particles) {
+      const column = Math.floor(particle.x / size);
+      const row = Math.floor(particle.y / size);
+      if (column < 0 || column >= columns || row < 0 || row >= rows) continue;
+      const index = row * columns + column;
+      coverage[index]++;
+      // The owner is the entity with the highest coverage. This prevents a
+      // blended canvas pixel from being assigned to the wrong glyph family.
+      if (owners[index] < 0) owners[index] = entityIndex;
     }
   }
 
-  const samplesNear = (col: number, row: number) => {
-    const result: Sample[] = [];
-    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
-      const x = col + dx, y = row + dy;
-      if (x < 0 || y < 0 || x >= cols || y >= rows) continue;
-      const list = buckets.get(key(x, y));
-      if (list) result.push(...list);
+  // Use a low-resolution image only for occupancy/brightness. Its RGB values
+  // are not used as output colors.
+  for (let entityIndex = 0; entityIndex < sim.entities.length; entityIndex++) {
+    const entity = sim.entities[entityIndex];
+    sample.fillStyle = entity.color;
+    for (const particle of entity.particles) {
+      sample.fillRect(Math.floor(particle.x / size), Math.floor(particle.y / size), 1, 1);
     }
-    return result;
-  };
+  }
 
-  const densityAt = (x: number, y: number, candidates: Sample[]) => {
-    let density = 0;
-    for (const p of candidates) {
-      const dx = p.x - x, dy = p.y - y;
-      const d2 = dx * dx + dy * dy;
-      density += Math.exp(-d2 / (cell * cell * 0.72));
-    }
-    return density;
-  };
-
-  ctx.font = `${Math.max(6, Math.floor(cell * 1.08))}px ui-monospace,SFMono-Regular,Menlo,monospace`;
+  const pixels = sample.getImageData(0, 0, columns, rows).data;
+  const cellWidth = sim.width / columns;
+  const cellHeight = sim.height / rows;
+  ctx.font = `${Math.max(6, size)}px ui-monospace,SFMono-Regular,Menlo,monospace`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
-  const lightX = -0.65;
-  const lightY = -0.76;
   for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      const x = (col + 0.5) * cell;
-      const y = (row + 0.5) * cell;
-      const candidates = samplesNear(col, row);
-      if (!candidates.length) continue;
-
-      let nearest = candidates[0];
-      let nearestD2 = Infinity;
-      for (const p of candidates) {
-        const dx = p.x - x, dy = p.y - y;
-        const d2 = dx * dx + dy * dy;
-        if (d2 < nearestD2) { nearestD2 = d2; nearest = p; }
-      }
-
-      const density = Math.min(1, densityAt(x, y, candidates) / 4.5);
-      const left = densityAt(x - cell * 0.55, y, candidates);
-      const right = densityAt(x + cell * 0.55, y, candidates);
-      const up = densityAt(x, y - cell * 0.55, candidates);
-      const down = densityAt(x, y + cell * 0.55, candidates);
-      const nx = left - right;
-      const ny = up - down;
-      const normalLength = Math.hypot(nx, ny) || 1;
-      const lighting = Math.max(0, Math.min(1, 0.5 + ((nx / normalLength) * lightX + (ny / normalLength) * lightY) * 0.5));
-      const value = Math.max(0, Math.min(1, density * 0.72 + lighting * 0.28));
-      const material = BLOBS[nearest.body];
-      const ramp = material.shade || material.glyphs;
-      const index = Math.min(ramp.length - 1, Math.floor((1 - value) * (ramp.length - 1)));
-      const glyph = ramp[index] || ' ';
-      if (glyph === ' ') continue;
-      ctx.fillStyle = material.color;
-      ctx.fillText(glyph, x, y);
+    for (let column = 0; column < columns; column++) {
+      const index = row * columns + column;
+      const entityIndex = owners[index];
+      if (entityIndex < 0) continue;
+      const entity = ENTITIES[entityIndex];
+      const pixel = index * 4;
+      const brightness = (pixels[pixel] * 0.299 + pixels[pixel + 1] * 0.587 + pixels[pixel + 2] * 0.114) / 255;
+      const maxGlyph = Math.max(1, entity.glyphs.length - 1);
+      const occupancy = Math.min(1, coverage[index] / 3);
+      const density = Math.max(0, Math.min(1, occupancy * 0.65 + brightness * 0.35));
+      const glyphIndex = Math.min(maxGlyph, Math.floor(density * (maxGlyph + 1)));
+      ctx.fillStyle = entity.color;
+      ctx.fillText(entity.glyphs[glyphIndex] || entity.glyphs[0] || '·', column * cellWidth + cellWidth / 2, row * cellHeight + cellHeight / 2);
     }
   }
+
+  void coverage;
+}
+
+function ensureSampleBuffer(width: number, height: number) {
+  if (!sampleCanvas) sampleCanvas = document.createElement('canvas');
+  if (sampleCanvas.width !== width || sampleCanvas.height !== height) {
+    sampleCanvas.width = width;
+    sampleCanvas.height = height;
+    sampleContext = sampleCanvas.getContext('2d', { willReadFrequently: true });
+  }
+  if (!sampleContext) throw new Error('Could not create ASCII sample context');
+  return sampleContext;
 }

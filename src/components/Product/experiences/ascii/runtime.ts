@@ -1,9 +1,9 @@
 import { EXPERIENCE_DEV } from '../experience-config';
 import type { ExperienceRuntime } from '../experience-config';
-import { DT, MAX_FRAME } from './config';
-import { DEFAULT_PARAMS, paramsToText, type Params } from './params';
-import { advance, createWorld, hitTest, release, resizeWorld } from './physics';
-import { draw, type RenderOptions } from './render';
+import { MAX_ELAPSED_SECONDS, STEP_SECONDS } from './config';
+import { DEFAULT_PARAMS, type SimulationParams } from './params';
+import { createSimulation, hitTest, releaseDrag, resizeSimulation, stepSimulation } from './physics';
+import { render, type RenderOptions } from './render';
 
 export function createExperience(host: HTMLElement): ExperienceRuntime {
   const root = document.createElement('div');
@@ -14,53 +14,86 @@ export function createExperience(host: HTMLElement): ExperienceRuntime {
   const canvas = document.createElement('canvas');
   canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block';
   root.appendChild(canvas);
-  const ctx = canvas.getContext('2d', { alpha: false })!;
+  const ctx = canvas.getContext('2d', { alpha: false });
+  if (!ctx) throw new Error('Could not create canvas context');
 
-  const params: Params = { ...DEFAULT_PARAMS };
-  const renderOpts: RenderOptions = { ascii: true, tiles: 110 };
+  const params: SimulationParams = { ...DEFAULT_PARAMS };
+  const options: RenderOptions = { ascii: true, tileSize: params.tileSize, tileMode: false };
+  const initial = root.getBoundingClientRect();
+  let simulation = createSimulation(Math.max(1, initial.width), Math.max(1, initial.height), params);
+  let dead = false;
+  let raf = 0;
+  let accumulator = 0;
+  let previous = performance.now();
 
-  const rect = root.getBoundingClientRect();
-  let w = createWorld(Math.max(1, rect.width), Math.max(1, rect.height), params);
-  let dead = false, raf = 0, acc = 0, last = performance.now();
-
-  // rebuild the world from scratch (used when particle count changes / reset)
   const rebuild = () => {
-    const r = root.getBoundingClientRect();
-    w = createWorld(Math.max(1, r.width), Math.max(1, r.height), params);
+    const rect = root.getBoundingClientRect();
+    simulation = createSimulation(Math.max(1, rect.width), Math.max(1, rect.height), params);
   };
 
   const resize = () => {
-    const r = root.getBoundingClientRect();
-    if (!r.width || !r.height) return;
+    const rect = root.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    resizeWorld(w, r.width, r.height);
-    canvas.width = Math.round(w.width * dpr);
-    canvas.height = Math.round(w.height * dpr);
+    if (canvas.width !== Math.round(rect.width * dpr) || canvas.height !== Math.round(rect.height * dpr)) {
+      resizeSimulation(simulation, rect.width, rect.height);
+      canvas.width = Math.round(rect.width * dpr);
+      canvas.height = Math.round(rect.height * dpr);
+    }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   };
   const observer = new ResizeObserver(resize);
   observer.observe(root);
   resize();
 
-  const pos = (e: PointerEvent) => {
-    const r = canvas.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  const position = (event: PointerEvent) => {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (event.clientX - rect.left) * simulation.width / Math.max(1, rect.width),
+      y: (event.clientY - rect.top) * simulation.height / Math.max(1, rect.height),
+    };
   };
-  const down = (e: PointerEvent) => {
-    const p = pos(e);
-    const id = hitTest(w, p.x, p.y);
-    if (id < 0 || w.pointers.has(e.pointerId)) return;
-    const b = w.blobs[id];
-    w.pointers.set(e.pointerId, { id: e.pointerId, x: p.x, y: p.y, blob: id, ox: p.x - b.cx, oy: p.y - b.cy });
-    canvas.setPointerCapture(e.pointerId);
-    e.preventDefault();
-  };
-  const move = (e: PointerEvent) => {
-    const p = w.pointers.get(e.pointerId); if (!p) return;
-    const q = pos(e); p.x = q.x; p.y = q.y;
-  };
-  const up = (e: PointerEvent) => release(w, e.pointerId);
 
+  const down = (event: PointerEvent) => {
+    const point = position(event);
+    const entityId = hitTest(simulation, point.x, point.y, params);
+    if (entityId < 0) return;
+    const entity = simulation.entities[entityId];
+    simulation.dragState.set(event.pointerId, {
+      pointerId: event.pointerId,
+      entityId,
+      x: point.x,
+      y: point.y,
+      offsetX: point.x - entity.x,
+      offsetY: point.y - entity.y,
+      velocityX: 0,
+      velocityY: 0,
+      lastTime: event.timeStamp,
+    });
+    canvas.setPointerCapture(event.pointerId);
+    root.style.cursor = 'grabbing';
+    event.preventDefault();
+  };
+
+  const move = (event: PointerEvent) => {
+    const drag = simulation.dragState.get(event.pointerId);
+    if (!drag) return;
+    const point = position(event);
+    const now = event.timeStamp;
+    const elapsed = Math.max(1, now - drag.lastTime) / 1000;
+    const nextX = point.x - drag.x;
+    const nextY = point.y - drag.y;
+    drag.velocityX = nextX / elapsed;
+    drag.velocityY = nextY / elapsed;
+    drag.x = point.x;
+    drag.y = point.y;
+    drag.lastTime = now;
+  };
+
+  const up = (event: PointerEvent) => {
+    releaseDrag(simulation, event.pointerId);
+    if (simulation.dragState.size === 0) root.style.cursor = 'grab';
+  };
   canvas.addEventListener('pointerdown', down);
   canvas.addEventListener('pointermove', move);
   canvas.addEventListener('pointerup', up);
@@ -68,156 +101,117 @@ export function createExperience(host: HTMLElement): ExperienceRuntime {
 
   const frame = (now: number) => {
     if (dead) return;
-    acc += Math.min(MAX_FRAME, (now - last) / 1000); last = now;
-    while (acc >= DT) { advance(w, params); acc -= DT; }
-    draw(ctx, w, params, renderOpts);
+    accumulator += Math.min(MAX_ELAPSED_SECONDS, (now - previous) / 1000);
+    previous = now;
+    while (accumulator >= STEP_SECONDS) {
+      stepSimulation(simulation, params);
+      accumulator -= STEP_SECONDS;
+    }
+    render(ctx, simulation, params, options);
     raf = requestAnimationFrame(frame);
   };
   raf = requestAnimationFrame(frame);
 
-  // ---- dev panel (bottom-left) ----
   let panel: HTMLElement | null = null;
   if (EXPERIENCE_DEV) {
-    panel = buildDevPanel(params, renderOpts, rebuild);
+    panel = buildPanel(params, options, rebuild, () => simulation);
     document.body.appendChild(panel);
   }
 
   return {
     destroy() {
-      if (dead) return; dead = true;
+      dead = true;
       cancelAnimationFrame(raf);
       observer.disconnect();
       canvas.removeEventListener('pointerdown', down);
       canvas.removeEventListener('pointermove', move);
       canvas.removeEventListener('pointerup', up);
       canvas.removeEventListener('pointercancel', up);
-      if (panel?.parentNode) panel.remove();
+      panel?.remove();
       host.replaceChildren();
     },
   };
 }
 
-// Build the bottom-left dev panel: ASCII toggle + tile slider, physics
-// sliders, and a button that copies all current values to text.
-function buildDevPanel(params: Params, renderOpts: RenderOptions, onRebuild: () => void): HTMLElement {
-  type Slider = { key: keyof Params; label: string; min: number; max: number; step: number };
-  // Ranges are set to the magnitudes that actually matter for each force.
-  // EVERY slider below genuinely changes the simulation.
-  // Ranges are in the physical units the physics uses (px/s², 1/s², px, px/s)
-  // so every slider maps to a real, comparable force magnitude.
-  const sliders: Slider[] = [
-    { key: 'count', label: 'particles / body', min: 40, max: 400, step: 10 },
-    { key: 'dot', label: 'particle dot (px)', min: 1, max: 8, step: 0.1 },
-    { key: 'gravity', label: 'gravity (px/s²)', min: 0, max: 250, step: 1 },
-    { key: 'pull', label: 'centre pull (1/s²)', min: 0, max: 4, step: 0.05 },
-    { key: 'spin', label: 'spin (1/s²)', min: 0, max: 3, step: 0.05 },
-    { key: 'drift', label: 'drift (px/s²)', min: 0, max: 80, step: 1 },
-    { key: 'cap', label: 'velocity cap (px/s)', min: 100, max: 1500, step: 10 },
-    { key: 'drag', label: 'drag (1/s)', min: 0.5, max: 8, step: 0.1 },
-    { key: 'coupling', label: 'coupling (px/s²)', min: 0, max: 250, step: 1 },
-    { key: 'horizon', label: 'interaction horizon (px)', min: 60, max: 800, step: 10 },
-    { key: 'tether', label: 'tether (1/s²)', min: 0, max: 30, step: 0.5 },
-    { key: 'yield', label: 'yield distance (px)', min: 10, max: 200, step: 5 },
-    { key: 'pack', label: 'packing stiffness', min: 0, max: 1, step: 0.05 },
-    { key: 'clearance', label: 'clearance (px)', min: 2, max: 20, step: 0.1 },
-    { key: 'halo', label: 'particle halo radius (px)', min: 0, max: 200, step: 2 },
-    { key: 'mingle', label: 'particle mingle strength', min: 0, max: 120, step: 1 },
+type Control = { key: keyof SimulationParams; label: string; min: number; max: number; step: number; rebuild?: boolean };
+
+function buildPanel(params: SimulationParams, options: RenderOptions, rebuild: () => void, getSimulation: () => ReturnType<typeof createSimulation>) {
+  const controls: Control[] = [
+    { key: 'entitiesCount', label: 'Population · particles per entity', min: 1, max: 120, step: 1, rebuild: true },
+    { key: 'dotRadius', label: 'Appearance · particle radius', min: 1, max: 30, step: 1 },
+    { key: 'tileSize', label: 'Appearance · tile amount / size', min: 4, max: 32, step: 1 },
+    { key: 'gravity', label: 'World · gravity (down)', min: -500, max: 500, step: 5 },
+    { key: 'centerPull', label: 'World · center pull', min: 0, max: 2, step: 0.01 },
+    { key: 'centerSpin', label: 'World · center spin', min: -2, max: 2, step: 0.01 },
+    { key: 'noise', label: 'World · shared noise field', min: 0, max: 200, step: 1 },
+    { key: 'particleNoise', label: 'Particles · individual noise', min: 0, max: 200, step: 1 },
+    { key: 'maxSpeed', label: 'Motion · maximum speed', min: 0, max: 1000, step: 10 },
+    { key: 'damping', label: 'Motion · damping', min: 0, max: 20, step: 0.1 },
+    { key: 'entityCollision', label: 'Contact · body collision', min: 0, max: 2000, step: 5 },
+    { key: 'cohesion', label: 'Shape · cohesion force', min: 0, max: 80, step: 0.5 },
+    { key: 'particleCollision', label: 'Shape · particle collision', min: 0, max: 2000, step: 5 }
   ];
 
+  // Controls must mutate the same render options object used by the frame loop.
+  const renderOptions: RenderOptions = options;
   const panel = document.createElement('div');
-  panel.style.cssText = `
-    box-sizing:border-box; position:fixed; left:12px; bottom:12px; z-index:99999;
-    width:300px; max-height:70vh; overflow:auto; padding:10px;
-    background:rgb(10 14 20 / 92%); color:#dfe9f2; font:11px/1.4 ui-monospace,monospace;
-    border:1px solid rgb(140 190 220 / 25%); border-radius:10px; backdrop-filter:blur(10px);
-  `;
+  panel.style.cssText = 'box-sizing:border-box;position:fixed;left:12px;bottom:12px;z-index:99999;width:min(440px,calc(100vw - 24px));max-height:75vh;overflow:auto;padding:14px;background:rgb(4 10 18 / 98%);color:#fff;font:14px/1.4 ui-monospace,monospace;border:1px solid rgb(150 210 255 / 70%);border-radius:12px;box-shadow:0 12px 40px rgb(0 0 0 / 55%)';
+  const title = document.createElement('strong');
+  title.textContent = 'COLOR GROUP CONTROLS';
+  title.style.cssText = 'display:block;color:#a9ddff;font-size:15px;margin-bottom:10px';
+  panel.appendChild(title);
 
-  const head = document.createElement('div');
-  head.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-weight:700;color:#9ddcff;';
-  head.textContent = 'ASCII physics';
-  const btns = document.createElement('div');
-  btns.style.cssText = 'display:flex;gap:4px;';
   const reset = document.createElement('button');
-  reset.textContent = 'Reset';
-  reset.title = 'Respawn / reposition the bodies (keeps your slider values)';
-  reset.style.cssText = 'background:#3a3a52;color:#cfe7ff;border:1px solid #3a6a8f;border-radius:6px;padding:3px 8px;cursor:pointer;';
-  reset.onclick = () => {
-    onRebuild(); // recreate blobs at their start spots, keep params as-is
-  };
-  btns.appendChild(reset);
-  const copy = document.createElement('button');
-  copy.textContent = 'Copy';
-  copy.title = 'Copy all slider values';
-  copy.style.cssText = 'background:#1d3a52;color:#cfe7ff;border:1px solid #3a6a8f;border-radius:6px;padding:3px 8px;cursor:pointer;';
-  copy.onclick = () => {
-    navigator.clipboard?.writeText(paramsToText(params)).catch(() => {});
-    copy.textContent = 'Copied ✓';
-    setTimeout(() => { copy.textContent = 'Copy'; }, 1200);
-  };
-  btns.appendChild(copy);
-  head.appendChild(btns);
-  panel.appendChild(head);
+  reset.textContent = 'Reset groups';
+  reset.onclick = rebuild;
+  reset.style.cssText = 'padding:6px 8px;margin-bottom:10px;background:#14283a;color:#fff;border:1px solid #4f7897;border-radius:6px';
+  panel.appendChild(reset);
 
-  // ASCII renderer toggle + tiles
-  const renderRow = document.createElement('div');
-  renderRow.style.cssText = 'margin-bottom:8px;';
-  const asciiToggle = document.createElement('label');
-  asciiToggle.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;';
-  const cb = document.createElement('input');
-  cb.type = 'checkbox';
-  cb.checked = renderOpts.ascii;
-  cb.style.accentColor = '#4f9fdc';
-  cb.onchange = () => { renderOpts.ascii = cb.checked; };
-  asciiToggle.appendChild(cb);
-  asciiToggle.appendChild(document.createTextNode('ASCII renderer'));
-  renderRow.appendChild(asciiToggle);
-  const tileRow = document.createElement('div');
-  tileRow.style.cssText = 'display:flex;align-items:center;gap:6px;margin-top:4px;';
-  const tileLabel = document.createElement('span');
-  tileLabel.style.cssText = 'flex:1;color:#c1d5e1;';
-  tileLabel.textContent = 'ASCII tiles';
-  const tileSlider = document.createElement('input');
-  tileSlider.type = 'range';
-  tileSlider.min = '20';
-  tileSlider.max = '160';
-  tileSlider.step = '2';
-  tileSlider.value = String(renderOpts.tiles);
-  tileSlider.style.cssText = 'flex:1;accent-color:#63b8eb;';
-  const tileVal = document.createElement('span');
-  tileVal.style.cssText = 'width:34px;text-align:right;color:#dff0ff;';
-  tileVal.textContent = String(renderOpts.tiles);
-  tileSlider.oninput = () => { renderOpts.tiles = Number(tileSlider.value); tileVal.textContent = String(renderOpts.tiles); };
-  tileRow.appendChild(tileLabel);
-  tileRow.appendChild(tileSlider);
-  tileRow.appendChild(tileVal);
-  renderRow.appendChild(tileRow);
-  panel.appendChild(renderRow);
+  const tileToggle = document.createElement('label');
+  tileToggle.style.cssText = 'display:flex;align-items:center;gap:8px;margin:0 0 12px;color:#fff;cursor:pointer';
+  const tileCheckbox = document.createElement('input');
+  tileCheckbox.type = 'checkbox';
+  tileCheckbox.checked = options.tileMode;
+  tileCheckbox.addEventListener('change', () => {
+    options.tileMode = tileCheckbox.checked;
+  });
+  tileToggle.append(tileCheckbox, document.createTextNode('Tile characters: ON / OFF'));
+  panel.appendChild(tileToggle);
 
-  // physics sliders.
-  for (const s of sliders) {
-    const row = document.createElement('div');
-    row.style.cssText = 'display:grid;grid-template-columns:1fr 110px 44px;align-items:center;gap:6px;margin:4px 0;';
+  for (const control of controls) {
+    const row = document.createElement('label');
+    row.style.cssText = 'display:grid;grid-template-columns:minmax(0,1fr) 115px 55px;align-items:center;gap:8px;margin:8px 0';
     const label = document.createElement('span');
-    label.style.cssText = 'color:#c1d5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
-    label.textContent = s.label;
-    const slider = document.createElement('input');
-    slider.type = 'range';
-    slider.min = String(s.min);
-    slider.max = String(s.max);
-    slider.step = String(s.step);
-    slider.value = String(params[s.key]);
-    slider.style.cssText = 'width:110px;accent-color:#63b8eb;';
-    const val = document.createElement('span');
-    val.style.cssText = 'text-align:right;color:#dff0ff;';
-    val.textContent = String(params[s.key]);
-    slider.oninput = () => {
-      params[s.key] = Number(slider.value);
-      val.textContent = String(params[s.key]);
-      if (s.key === 'count') onRebuild();
+    label.textContent = control.label;
+    label.style.cssText = 'white-space:normal;overflow-wrap:anywhere';
+    const input = document.createElement('input');
+    input.type = 'range';
+    input.min = String(control.min);
+    input.max = String(control.max);
+    input.step = String(control.step);
+    input.value = String(params[control.key]);
+    const value = document.createElement('output');
+    value.textContent = String(params[control.key]);
+    value.style.cssText = 'text-align:right;font-weight:700';
+    input.oninput = () => {
+      const previousValue = params[control.key];
+      params[control.key] = Number(input.value);
+      value.textContent = input.value;
+      if (control.key === 'dotRadius') {
+        const scale = Number(input.value) / Math.max(0.01, Number(previousValue));
+        for (const entity of getSimulation().entities) {
+          for (const particle of entity.particles) {
+            particle.homeX *= scale;
+            particle.homeY *= scale;
+            particle.x = entity.x + (particle.x - entity.x) * scale;
+            particle.y = entity.y + (particle.y - entity.y) * scale;
+          }
+        }
+      }
+      if (control.key === 'tileSize') options.tileSize = Number(input.value);
+      if (control.rebuild) rebuild();
     };
-    row.appendChild(label);
-    row.appendChild(slider);
-    row.appendChild(val);
+    row.append(label, input, value);
     panel.appendChild(row);
   }
 

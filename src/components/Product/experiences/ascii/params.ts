@@ -1,45 +1,31 @@
-// Runtime coefficients for the phase-coupled identical-body system.
-// These are defined after the physics and entity model; they are not the model.
-export type Params = {
-  count: number;
-  dot: number;
+export type SimulationParams = {
+  entitiesCount: number;
+  dotRadius: number;
+  tileSize: number;
   gravity: number;
-  pull: number;
-  spin: number;
-  drift: number;
-  cap: number;
-  drag: number;
-  coupling: number;
-  horizon: number;
-  tether: number;
-  yield: number;
-  pack: number;
-  clearance: number;
-  halo: number;
-  mingle: number;
+  centerPull: number;
+  centerSpin: number;
+  noise: number;
+  particleNoise: number;
+  maxSpeed: number;
+  damping: number;
+  cohesion: number;
+  particleCollision: number;
+  entityCollision: number;
 };
 
-export const DEFAULT_PARAMS: Params = {
-  count: 180,
-  dot: 1,
-  gravity: 250,
-  pull: 2.75,
-  spin: 0.95,
-  drift: 31,
-  cap: 1100,
-  drag: 4.3,
-  coupling: 100,
-  horizon: 370,
-  tether: 27.5,
-  yield: 70,
-  pack: 0.7,
-  clearance: 8,
-  halo: 172,
-  mingle: 54,
+export const DEFAULT_PARAMS: SimulationParams = {
+  entitiesCount: 13,
+  dotRadius: 21,
+  tileSize: 1,
+  gravity: 30,
+  centerPull: 2,
+  centerSpin: 1.1,
+  noise: 200,
+  particleNoise: 200,
+  maxSpeed: 430,
+  damping: 12.8,
+  cohesion: 4,
+  particleCollision: 2000,
+  entityCollision: 2000,
 };
-
-export function paramsToText(params: Params) {
-  return (Object.keys(params) as (keyof Params)[])
-    .map(key => `${key}=${params[key]}`)
-    .join('\n');
-}

@@ -87,6 +87,8 @@ const transparentPaper =
   import { KineticA } from "./Text2/engine";
 
   const hosts = document.querySelectorAll<HTMLDivElement>("[data-kinetic]");
+  // Only opt out when the user explicitly requests reduced motion. Mobile
+  // browsers may otherwise throttle rAF, but should still be allowed to run.
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   const instances: KineticA[] = [];
