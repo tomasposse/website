@@ -1,7 +1,7 @@
 // Shared experience configuration and development controls.
 // `EXPERIENCE_DEV` is the single switch that turns on every experience's dev
 // UI (asan per-experience panel). Set it once to enable/disable all of them.
-export const EXPERIENCE_DEV = true;
+export const EXPERIENCE_DEV = false;
 // Alias kept for older imports — one source of truth, both reflect the flag.
 export const DEV = EXPERIENCE_DEV;
 
