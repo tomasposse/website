@@ -55,7 +55,12 @@
 
   .shell-face {
     position: relative; width: 100%; height: 100%; border-radius: 13px;
-    background: rgba(255,255,255,0.95); backdrop-filter: blur(8px);
+    background: rgba(255,255,255,0.95);
+    /* NO backdrop-filter here: the glow pseudo-elements (.shell::before/::after)
+       extend outside this card, and any backdrop-filter/compositing surface on
+       the face clips them on mobile (esp. Safari). The card is 95% opaque white,
+       so the blur it would add is invisible anyway — dropping it costs nothing
+       visually and stops the glow being cut off. */
     /* Keep the face clipped, but not the shell: the animated border/glow lives
        outside .shell-face and must remain visible on narrow/mobile viewports. */
     overflow: visible; z-index: 1;
@@ -80,39 +85,30 @@
   .shell-go:hover { background: #334155; box-shadow: 0 2px 10px rgba(30,41,59,0.2); }
   .shell-go:active { background: #1e293b; transform: scale(.94); }
   @media (max-width:768px) {
-    /* Give the glow dedicated sideways room so it is never squeezed against /
-       clipped by the viewport or its container edges. The glow overshoots the
-       card by 9px (::after), so shrink the card by that on each side. */
-    .shell { max-width: 100%; width: calc(100% - 18px); }
-    /* Mobile Safari turns backdrop-filter into a compositing surface that clips
-       the glow pseudo-elements sticking out (.shell::before/::after at negative
-       insets). The glow needs to stay visible, and a flat white card gains
-       nothing from a blur it can't see through, so drop the blur on small
-       screens. */
-    .shell-face { backdrop-filter: none; -webkit-backdrop-filter: none; }
+    .shell { max-width: 100%; }
     .shell-top { padding: 10px 12px 3px 12px; }
     .shell-in { font-size: .72rem; }
-    .shell-btn { width: 24px; height: 24px; } .shell-btn svg { width: 11px; height: 11px; }
+    .shell-btn { width: 26px; height: 26px; } .shell-btn svg { width: 13px; height: 13px; }
     .shell-go { height: 30px; padding: 0 12px 0 8px; font-size: .72rem; } .shell-go svg { width: 14px; height: 14px; }
     .shell-div { height: 16px; margin: 0 3px; }
-    .shell-acts { padding: 3px 12px 10px 12px; gap: 0; }
+    .shell-acts { padding: 4px 10px 10px 10px; gap: 2px; overflow: hidden; }
     .shell-btn--hide-mobile { display: none; }
   }
   @media (max-width:480px) {
     .shell-top { padding: 8px 10px 3px 10px; }
     .shell-in { font-size: .68rem; }
-    .shell-btn { width: 22px; height: 22px; } .shell-btn svg { width: 10px; height: 10px; }
+    .shell-btn { width: 24px; height: 24px; } .shell-btn svg { width: 12px; height: 12px; }
     .shell-go { height: 28px; padding: 0 10px 0 6px; font-size: .68rem; } .shell-go svg { width: 12px; height: 12px; }
-    .shell-acts { padding: 3px 10px 9px 10px; }
+    .shell-acts { padding: 3px 8px 9px 8px; gap: 2px; overflow: hidden; }
     .shell-div { height: 14px; margin: 0 2px; }
     .shell-btn--hide-mobile--search { display: none; }
   }
   @media (max-width:380px) {
     .shell-top { padding: 7px 8px 2px 8px; }
     .shell-in { font-size: .62rem; }
-    .shell-btn { width: 20px; height: 20px; } .shell-btn svg { width: 9px; height: 9px; }
+    .shell-btn { width: 24px; height: 24px; } .shell-btn svg { width: 12px; height: 12px; }
     .shell-go { height: 26px; padding: 0 8px 0 4px; font-size: .64rem; } .shell-go svg { width: 11px; height: 11px; }
-    .shell-acts { padding: 2px 8px 8px 8px; }
+    .shell-acts { padding: 2px 6px 8px 6px; gap: 1px; overflow: hidden; }
     .shell-div { height: 12px; margin: 0 1px; }
   }
 </style>
