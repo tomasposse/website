@@ -44,7 +44,9 @@
 
     opacity: 0.3; }
 
-    
+    will-change: filter, transform;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
   /* Idle / after a load completes the glow unmounts (fades + stops spinning).
      The UI calls __setGlow(true) to bring it back for each new build, and
      __setGlow(false) to unmount it once the experience is ready. */
