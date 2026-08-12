@@ -16,7 +16,6 @@
 html,
 body {
     height: 100%;
-    margin: 0;
 
     font-family: var(--font-global);
     color: var(--font-color);
@@ -26,6 +25,21 @@ body {
     font-size: 16px;
 
     background: #929599;
+}
+
+html {
+  overflow: hidden;
+}
+
+
+body {
+  margin: 0;
+  overflow: hidden;
+}
+body > div {
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior-y: none;
 }
 
 *,
