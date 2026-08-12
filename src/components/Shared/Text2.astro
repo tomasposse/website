@@ -87,9 +87,11 @@ const transparentPaper =
   import { KineticA } from "./Text2/engine";
 
   const hosts = document.querySelectorAll<HTMLDivElement>("[data-kinetic]");
-  // Only opt out when the user explicitly requests reduced motion. Mobile
-  // browsers may otherwise throttle rAF, but should still be allowed to run.
-  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  /* Reduced-motion support is currently disabled: this kinetic animation always
+     runs regardless of the user's `prefers-reduced-motion` setting. Re-enable
+     by restoring a `window.matchMedia("(prefers-reduced-motion: reduce)")`
+     check and branching to engine.renderStatic() when set. Mobile browsers may
+     otherwise throttle rAF, but should still be allowed to run. */
 
   const instances: KineticA[] = [];
 
@@ -124,11 +126,6 @@ const transparentPaper =
 
     const ro = new ResizeObserver(() => engine.fitToText());
     ro.observe(host);
-
-    if (reduce) {
-      engine.renderStatic();
-      return;
-    }
 
     let onScreen = true;
     let hidden = false;

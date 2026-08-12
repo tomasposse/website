@@ -23,8 +23,8 @@
     position: relative; padding: 1px; border-radius: 13px; background: transparent;
   }
   .shell::before, .shell::after {
-    content: ''; position: absolute; z-index: -1; pointer-events: none;
-    overflow: visible;   /* the glow must never be clipped by the shell itself */
+    content: ''; position: absolute; pointer-events: none;
+    
     
     background: conic-gradient(from var(--a),
       #f472b6 0deg, #fb923c 20deg, #facc15 40deg,
@@ -38,15 +38,20 @@
   .shell::before { inset: -4px; opacity: 0.6;
   border-radius: 15px;
 }
-  .shell::after { inset: -9px;
+  .shell::after { 
+    inset: -9px;
     border-radius: 17px;
     filter: blur(6px);
-
-    opacity: 0.3; }
-
-    will-change: filter, transform;
-  -webkit-transform: translate3d(0, 0, 0);
-  transform: translate3d(0, 0, 0);
+    opacity: 0.3;
+  }
+  .shell {
+    /* Only `transform` (not `filter`) for the compositing hint: on Safari
+       `will-change: filter` forces the blurred layer to be rasterised at a
+       fixed, lower resolution, which worsens the edge glitches. */
+    will-change: transform;
+    -webkit-transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0);
+  }
   /* Idle / after a load completes the glow unmounts (fades + stops spinning).
      The UI calls __setGlow(true) to bring it back for each new build, and
      __setGlow(false) to unmount it once the experience is ready. */

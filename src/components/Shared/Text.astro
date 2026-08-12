@@ -26,7 +26,11 @@ const {
   import { DesignTiles } from "./Text/engine";
 
   const hosts = document.querySelectorAll<HTMLElement>("[data-design-tiles]");
-  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* Reduced-motion support is currently disabled: this tiles animation always
+     runs regardless of the user's `prefers-reduced-motion` setting. Re-enable
+     by restoring a `const reduce = window.matchMedia("(prefers-reduced-motion:
+     reduce)").matches` check and branching to tiles.renderStill() when set. */
 
   const instances: DesignTiles[] = [];
 
@@ -37,11 +41,7 @@ const {
       colorVariation: Number(host.getAttribute("data-color-variation") ?? 1),
     });
     instances.push(tiles);
-    if (reduce) {
-      tiles.renderStill();
-    } else {
-      tiles.start();
-    }
+    tiles.start();
   });
 
   if (document.fonts?.ready) {
