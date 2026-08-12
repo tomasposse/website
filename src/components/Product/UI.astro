@@ -20,12 +20,12 @@
 
   .shell {
     width: 100%; max-width: 620px; min-width: 0; margin: 0 auto; box-sizing: border-box; font-family: var(--font-global);
-    position: relative; padding: 1px; border-radius: 14px; background: transparent;
+    position: relative; padding: 1px; border-radius: 13px; background: transparent;
   }
   .shell::before, .shell::after {
-    content: ''; position: absolute; z-index: 0; pointer-events: none;
+    content: ''; position: absolute; z-index: -1; pointer-events: none;
     overflow: visible;   /* the glow must never be clipped by the shell itself */
-    border-radius: 18px;
+    
     background: conic-gradient(from var(--a),
       #f472b6 0deg, #fb923c 20deg, #facc15 40deg,
       #34d399 60deg, #38bdf8 80deg, #818cf8 100deg,
@@ -35,8 +35,16 @@
     animation: spinIdle 3s linear infinite;   /* idle: slow continuous spin */
     transition: opacity 0.4s ease;
   }
-  .shell::before { inset: -4px; opacity: 0.6; }
-  .shell::after { inset: -9px; filter: blur(6px); opacity: 0.3; }
+  .shell::before { inset: -4px; opacity: 0.6;
+  border-radius: 15px;
+}
+  .shell::after { inset: -9px;
+    border-radius: 17px;
+    filter: blur(6px);
+
+    opacity: 0.3; }
+
+    
   /* Idle / after a load completes the glow unmounts (fades + stops spinning).
      The UI calls __setGlow(true) to bring it back for each new build, and
      __setGlow(false) to unmount it once the experience is ready. */
@@ -70,7 +78,7 @@
   .shell-top { flex: 0 0 auto; padding: 12px 14px 4px 14px; min-height: 16px; }
   /* Clip only the prompt itself, rather than the whole face (which would clip
      the pseudo-element glow on mobile Safari). */
-  .shell-top { overflow: hidden; border-radius: 13px 13px 0 0; }
+  .shell-top {  border-radius: 13px 13px 0 0; }
   .shell-in { color: #1e293b; font-family: var(--font-global); font-size: .82rem; font-weight: 400; line-height: 1.5; min-height: 1.5em; width: 100%; box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: none; transition: opacity 0.3s ease; }
   .shell-in.cursor::after { content: '▍'; color: #818cf8; animation: blink 0.9s steps(1) infinite; margin-left: 1px; }
   @keyframes blink { 50% { opacity: 0; } }
@@ -91,7 +99,7 @@
     .shell-btn { width: 26px; height: 26px; } .shell-btn svg { width: 13px; height: 13px; }
     .shell-go { height: 30px; padding: 0 12px 0 8px; font-size: .72rem; } .shell-go svg { width: 14px; height: 14px; }
     .shell-div { height: 16px; margin: 0 3px; }
-    .shell-acts { padding: 4px 10px 10px 10px; gap: 2px; overflow: hidden; }
+    .shell-acts { padding: 4px 10px 10px 10px; gap: 2px;  }
     .shell-btn--hide-mobile { display: none; }
   }
   @media (max-width:480px) {
@@ -99,7 +107,7 @@
     .shell-in { font-size: .68rem; }
     .shell-btn { width: 24px; height: 24px; } .shell-btn svg { width: 12px; height: 12px; }
     .shell-go { height: 28px; padding: 0 10px 0 6px; font-size: .68rem; } .shell-go svg { width: 12px; height: 12px; }
-    .shell-acts { padding: 3px 8px 9px 8px; gap: 2px; overflow: hidden; }
+    .shell-acts { padding: 3px 8px 9px 8px; gap: 2px; }
     .shell-div { height: 14px; margin: 0 2px; }
     .shell-btn--hide-mobile--search { display: none; }
   }
